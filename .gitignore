@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+.venv/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db 
+
+# Other common files to ignore
+node_modules/
+dist/
+.DS_Store 
+
+# New additions
+.venv/
+venv/
+ENV/ 
+
+# Reference directory
+reference/ 
+
+# Documentation
+docs/ 
+structure.drawio
+
+# logs
+logs/
+
+# data
+src/data/stock_news
+src/data/sentiment_cache.json
+
+# docs
+docs/
+
+# cache
+cache/
+
+# temp
+temp/
+
+
+# macro analysis
+src/data/macro_analysis_cache.json
+
+test/
+src/data/macro_summary.json
