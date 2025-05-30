@@ -1,26 +1,109 @@
 <div align="center">
 
-# 🤖 AI Investment System 🧠
+# 🤖 AI Trading Agent 🧠
 
 </div>
 
 ## Project Overview
 
-This is a proof-of-concept project for an artificial intelligence-based investment system. The project aims to explore how AI can assist investment decisions through multi-agent collaboration, combining the analytical capabilities of Large Language Models (LLMs) to provide multi-perspective market interpretations and investment advice.
+The "Trading Agent System" project is designed to develop a sophisticated, AI-driven platform for automated investment analysis and decision-making. In the contemporary financial landscape, the voluminous nature of market data, news, and influencing factors presents a significant challenge for human traders to efficiently process information and make timely, optimal decisions. This project addresses this challenge by creating a system of specialized AI agents that collaborate to analyze various facets of financial markets and individual stocks.
+The system aims to emulate the workflow of a human investment analysis team, wherein different experts (e.g., technical analysts, fundamental analysts) contribute their insights, which are subsequently debated and synthesized to formulate a coherent trading strategy. By leveraging technologies such as LangGraph for structured agent workflows and Large Language Models (LLMs) for complex data interpretation (e.g., news sentiment analysis), this project endeavors to provide a robust, data-driven, and potentially automated solution for trading. The ultimate objective is to assist in identifying investment opportunities, managing risk, and executing trades with enhanced precision and efficiency.
 
-### Core Concept: Multi-Agent Collaboration and LLM-Enhanced Decision Making
-
-The system simulates different roles of researchers (bull, bear) and analysts, collecting information, analyzing, debating, and ultimately forming investment decisions. The latest "Debate Room Intelligence Enhancement" mechanism introduces LLM as an independent third party, further improving the objectivity and comprehensiveness of decisions.
 
 ## System Architecture
 
-The new version of the architecture has made the following improvements:
+The core of the system is its multi-agent architecture. Based on the latest provided architecture diagram, the process flow is as follows:
+![image](https://github.com/user-attachments/assets/f73574d2-a682-472a-947a-a04f1b191e0a)
 
-1. Introduced Researcher Bull and Researcher Bear, allowing the system to analyze the market from different perspectives
-2. Added a Debate Room process, achieving more comprehensive decisions through debates between bull and bear parties
-3. Optimized data flow, making the decision process more systematic and complete
+The workflow is described below: 
+- Data Ingestion: Commences with the Market Data Agent.
+- Parallel Analysis: Data is disseminated to the Technical Analyst Agent, Fundamentals Agent, Sentiment Agent, and the Macro News Agent (providing market-wide insights).
+- Viewpoint Synthesis: The outputs from these four analytical agents are passed to the Researcher Bull Agent and the Researcher Bear Agent.
+- Debate and Refinement: The bullish and bearish theses are processed by the Debate Room Agent.
+- Risk Assessment & Stock-Specific Macro Context: The outcome of the debate is transmitted to the Risk Management Agent, and subsequently to the stock-specific Macro Analyst Agent.
+- Final Decision: The Portfolio Management Agent renders the final trading decision.
 
-Additionally, the terminal output has been optimized, reducing unnecessary detailed data display, making the output clearer and easier to read.
+### Data Flow and Processing
+
+#### Data Flow Process
+
+1. **Data Collection Stage**
+
+   - Market Data Agent obtains real-time market data through akshare API:
+     - Stock real-time quotes (`stock_zh_a_spot_em`)
+     - Historical market data (`stock_zh_a_hist`)
+     - Financial indicator data (`stock_financial_analysis_indicator`)
+     - Financial statement data (`stock_financial_report_sina`)
+   - News data is obtained through Sina Finance API
+   - All data undergoes standardization processing and formatting
+
+2. **Analysis Stage**
+
+   - Technical Analyst: Calculates technical indicators, analyzes price patterns, generates technical analysis scores and recommendations.
+   - Fundamentals Analyst: Analyzes financial statements, evaluates fundamentals, generates fundamental analysis scores.
+   - Sentiment Analyst: Analyzes market news, uses AI models to evaluate sentiment, generates market sentiment scores.
+   - Valuation Analyst: Calculates valuation indicators, performs DCF valuation, assesses intrinsic value.
+   - Researcher Bull/Bear: Conducts in-depth analysis from their respective standpoints, prepares debate materials.
+
+3. **Debate and Evaluation Stage (Debate Room)**
+
+   - Bull and bear researchers submit their viewpoints.
+   - The system summarizes viewpoints, potentially assisted by LLM to generate structured analysis.
+   - LLM acts as a third party to objectively evaluate viewpoints and provide scores.
+   - Calculates hybrid confidence.
+
+4. **Risk Assessment Stage**
+   Risk Manager comprehensively considers multiple dimensions:
+
+   - Market risk assessment (volatility, Beta, etc.)
+   - Position size limit calculation
+   - Stop-loss and take-profit level setting
+   - Portfolio risk control
+   - Integration of enhanced signals from the debate room.
+
+5. **Decision Stage**
+   Portfolio Manager makes decisions based on the following factors:
+
+   - Signal strength and confidence from each Agent.
+   - Comprehensive conclusions and hybrid confidence from the debate room.
+   - Current market conditions and risk levels.
+   - Portfolio status and cash levels.
+   - Trading costs and liquidity considerations.
+
+6. **Data Storage and Caching**
+
+   - Sentiment analysis results are cached in `data/sentiment_cache.json`
+   - News data is saved in the `data/stock_news/` directory
+   - Log files are stored by type in the `logs/` directory
+   - API call records are written to logs in real-time
+
+7. **Monitoring and Feedback**
+   - All API calls have detailed log records
+   - The analysis process of each Agent can be tracked
+   - System decision process (including debate phase) is transparent and queryable
+   - Backtesting results provide performance evaluation
+
+### Agent Collaboration Mechanism
+
+1. **Information Sharing**
+
+   - All agents share the same state object (AgentState) or pass information through clearly defined data structures.
+   - Communication occurs through message passing mechanisms or sequential calls.
+   - Each agent can access necessary historical data and preceding analysis results.
+
+2. **Decision Weighting and Fusion**
+   Portfolio Manager considers the weights of different signals when making decisions, combined with the hybrid confidence from the debate room:
+   - Fundamental analysis: (example weight) 30%
+   - Technical analysis: (example weight) 25%
+   - Sentiment analysis: (example weight) 10%
+   - Macro News analysis: (example weight) 35%
+   - Debate room conclusion: May serve as an important adjustment factor or independent confidence source for the final decision.
+
+3. **Risk Control**
+   - Mandatory risk limits
+   - Maximum position limits
+   - Trading size limits
+   - Stop-loss and take-profit settings
 
 ## 🛠️ Installation and Setup
 
@@ -205,483 +288,32 @@ For detailed backend API documentation, please refer to: [View Detailed Backend 
 - `--initial-capital`: Initial cash amount (optional, default is `100,000`)
 - `--num-of-news`: Number of news used for sentiment analysis (optional, default is `5`)
 
-### Command Line Mode Output Description
 
-The system will output the following information:
 
-1. Fundamental analysis results
-2. Valuation analysis results
-3. Technical analysis results
-4. Sentiment analysis results
-5. Risk management assessment
-6. Final trading decision
 
-If the `--show-reasoning` parameter is used, the detailed analysis process of each agent will also be displayed.
 
-**Example Output:**
-
-```
-Retrieving historical market data for 301157...
-Start date: 2024-12-11
-End date: 2024-12-11
-Successfully retrieved historical market data, 242 records in total
-
-Warning: The following indicators have NaN values:
-- momentum_1m: 20 items
-- momentum_3m: 60 items
-- momentum_6m: 120 items
-...(these warnings are normal, due to some technical indicators requiring longer historical data to calculate)
-
-Retrieving financial indicator data for 301157...
-Getting real-time quotes...
-Successfully retrieved real-time quote data
-
-Getting Sina financial indicators...
-Successfully retrieved Sina financial indicator data, 3 records in total
-Latest data date: 2024-09-30 00:00:00
-
-Getting income statement data...
-Successfully retrieved income statement data
-
-Building indicator data...
-Successfully built indicator data
-
-Final Result:
-{
-  "action": "buy",
-  "quantity": 12500,
-  "confidence": 0.42,
-  "agent_signals": [
-    {
-      "agent": "Technical Analysis",
-      "signal": "bullish",
-      "confidence": 0.6
-    },
-    {
-      "agent": "Fundamental Analysis",
-      "signal": "neutral",
-      "confidence": 0.5
-    },
-    {
-      "agent": "Sentiment Analysis",
-      "signal": "neutral",
-      "confidence": 0.8
-    },
-    {
-      "agent": "Valuation Analysis",
-      "signal": "bearish",
-      "confidence": 0.99
-    },
-    {
-      "agent": "Risk Management",
-      "signal": "buy",
-      "confidence": 1.0
-    }
-  ],
-  "reasoning": "Risk Management allows a buy action with a maximum quantity of 12500..."
-}
-```
-
-### Log File Description
-
-The system will generate the following types of log files in the `logs/` directory:
-
-1. **Backtest Logs**
-
-   - File name format: `backtest_{stock_code}_{current_date}_{backtest_start_date}_{backtest_end_date}.log`
-   - Example: `backtest_301157_20250107_20241201_20241230.log`
-   - Contains: Analysis results, trading decisions, and portfolio status for each trading day
-
-2. **API Call Logs**
-   - File name format: `api_calls_{current_date}.log`
-   - Example: `api_calls_20250107.log`
-   - Contains: Detailed information and responses for all API calls
-
-All date formats are YYYY-MM-DD. If the `--show-reasoning` parameter is used, the detailed analysis process will also be recorded in the log files.
-
-## 📂 Project Structure
-
-```
-trading_agent/
-├── backend/                     # Backend API and services
-│   ├── dependencies.py          # Dependency injection (e.g., LogStorage)
-│   ├── main.py                  # FastAPI application instance
-│   ├── models/                  # API request/response models (Pydantic)
-│   │   ├── analysis.py          # /analysis/ related routes
-│   │   ├── api_runs.py          # /api/runs/ related routes (based on api_state)
-│   │   ├── logs.py              # /logs/ related routes
-│   │   ├── runs.py              # /runs/ related routes (based on BaseLogStorage)
-│   │   └── workflow.py          # /api/workflow/ related routes
-│   ├── schemas.py               # Internal data structures/log models (Pydantic)
-│   ├── services/                # Business logic services
-│   │   └── analysis.py          # Stock analysis service
-│   ├── state.py                 # In-memory state management (api_state)
-│   ├── storage/                 # Log storage implementation
-│   │   ├── base.py              # BaseLogStorage interface definition
-│   │   └── memory.py            # InMemoryLogStorage implementation
-│   └── utils/                   # Backend utility functions
-│       ├── api_utils.py         # API-related tools
-│       └── context_managers.py  # Context managers (e.g., workflow_run)
-├── src/                         # Agent core logic and tools
-│   ├── agents/                  # Agent definitions and workflows
-│   │   ├── __init__.py
-│   │   ├── debate_room.py
-│   │   ├── fundamentals.py
-│   │   ├── macro_analyst.py       # Macro Analyst Agent
-│   │   ├── market_data.py
-│   │   ├── portfolio_manager.py
-│   │   ├── researcher_bear.py
-│   │   ├── researcher_bull.py
-│   │   ├── risk_manager.py
-│   │   ├── sentiment.py
-│   │   ├── state.py
-│   │   ├── technicals.py
-│   │   └── valuation.py
-│   ├── data/                   # Data storage directory (local cache, etc.)
-│   │   ├── img/                # Project images
-│   │   ├── sentiment_cache.json  # Sentiment analysis result cache
-│   │   ├── macro_analysis_cache.json  # Macro analysis result cache
-│   │   └── stock_news/         # Stock news data
-│   ├── tools/                  # Tools and function modules (LLM, data acquisition)
-│   │   ├── __init__.py
-│   │   ├── api.py
-│   │   ├── data_analyzer.py
-│   │   ├── news_crawler.py
-│   │   └── openrouter_config.py
-│   ├── utils/                  # Common utility functions (logs, LLM clients, serialization)
-│   │   ├── __init__.py
-│   │   ├── api_utils.py        # Agent shared API tools (gradually migrating to backend)
-│   │   ├── llm_clients.py
-│   │   ├── llm_interaction_logger.py
-│   │   ├── logging_config.py
-│   │   ├── output_logger.py
-│   │   ├── serialization.py
-│   │   ├── structured_terminal.py  # Structured terminal output
-│   │   └── summary_report.py    # Summary report generation
-│   ├── backtester.py          # Backtesting system (may need status check)
-│   └── main.py                # Agent workflow definition and command line entry
-├── logs/                      # Log file directory (mainly generated by OutputLogger)
-├── .env                       # Environment variable configuration
-├── .env.example              # Environment variable example
-├── poetry.lock               # Poetry dependency lock file
-├── pyproject.toml            # Poetry project configuration
-├── run_with_backend.py       # Script to start backend and optionally execute analysis
-└── README.md                 # Project documentation
-```
-
-## 📖 Project Detailed Description
-
-### Architecture Design
-
-This project is an AI investment system based on multiple agents, adopting a modular design where each agent has its dedicated responsibilities. The system architecture is as follows:
-
-```
-Market Data Analyst → [Technical/Fundamentals/Sentiment/Valuation Analyst & Researcher Bull/Bear & Debate Room] → Risk Manager → Portfolio Manager → Trading Decision
-```
-
-#### Agent Roles and Responsibilities
-
-1. **Market Data Analyst**
-
-   - Serves as the entry point of the system
-   - Responsible for collecting and preprocessing all necessary market data
-   - Obtains A-share market data through the akshare API
-   - Data sources: East Money, Sina Finance, etc.
-
-2. **Technical Analyst**
-
-   - Analyzes price trends, volume, momentum, and other technical indicators
-   - Generates trading signals based on technical analysis
-   - Focuses on short-term market trends and trading opportunities
-
-3. **Fundamentals Analyst**
-
-   - Analyzes company financial indicators and operational status
-   - Evaluates the company's long-term development potential
-   - Generates trading signals based on fundamentals
-
-4. **Sentiment Analyst**
-
-   - Analyzes market news and public opinion data
-   - Evaluates market sentiment and investor behavior
-   - Generates trading signals based on sentiment
-
-5. **Valuation Analyst**
-
-   - Conducts company valuation analysis
-   - Assesses the intrinsic value of stocks
-   - Generates trading signals based on valuation
-
-6. **Researcher Bull / Researcher Bear** (New)
-
-   - Conducts in-depth research and analysis from bullish and bearish perspectives respectively, providing opposing viewpoints.
-
-7. **Debate Room** (New and Enhanced)
-
-   - Bull and bear researchers present their views and engage in debate.
-   - Introduces LLM as a third-party analyst to objectively evaluate debate content and viewpoints.
-   - Integrates various perspectives and LLM scores to form a more comprehensive decision basis.
-
-8. **Risk Manager**
-
-   - Integrates trading signals from all agents and debate results
-   - Assesses potential risks
-   - Sets trading limits and risk control parameters
-   - Generates risk management signals
-
-9. **Portfolio Manager**
-   - Acts as the final decision maker
-   - Comprehensively considers all signals, debate results, and risk factors
-   - Makes the final trading decision (buy/sell/hold)
-   - Ensures decisions comply with risk management requirements
-
-### Data Flow and Processing
-
-#### Data Types
-
-1. **Market Data**
-
-   ```python
-   {
-      "market_cap": float,        # Total market capitalization
-      "volume": float,            # Trading volume
-      "average_volume": float,    # Average volume
-      "fifty_two_week_high": float,  # 52-week high
-      "fifty_two_week_low": float    # 52-week low
-   }
-   ```
-
-2. **Financial Metrics**
-
-   ```python
-   {
-      # Market data
-      "market_cap": float,          # Total market capitalization
-      "float_market_cap": float,    # Float market capitalization
-
-      # Profitability data
-      "revenue": float,             # Total operating revenue
-      "net_income": float,          # Net profit
-      "return_on_equity": float,    # Return on equity
-      "net_margin": float,          # Net profit margin
-      "operating_margin": float,    # Operating profit margin
-
-      # Growth indicators
-      "revenue_growth": float,      # Main business revenue growth rate
-      "earnings_growth": float,     # Net profit growth rate
-      "book_value_growth": float,   # Net asset growth rate
-
-      # Financial health indicators
-      "current_ratio": float,       # Current ratio
-      "debt_to_equity": float,      # Debt-to-equity ratio
-      "free_cash_flow_per_share": float,  # Free cash flow per share
-      "earnings_per_share": float,  # Earnings per share
-
-      # Valuation ratios
-      "pe_ratio": float,           # Price-to-earnings ratio (dynamic)
-      "price_to_book": float,      # Price-to-book ratio
-      "price_to_sales": float      # Price-to-sales ratio
-   }
-   ```
-
-3. **Financial Statements**
-
-   ```python
-   {
-      "net_income": float,          # Net profit
-      "operating_revenue": float,    # Total operating revenue
-      "operating_profit": float,     # Operating profit
-      "working_capital": float,      # Working capital
-      "depreciation_and_amortization": float,  # Depreciation and amortization
-      "capital_expenditure": float,  # Capital expenditure
-      "free_cash_flow": float       # Free cash flow
-   }
-   ```
-
-4. **Trading Signals**
-   ```python
-   {
-      "action": str,               # "buy", "sell", "hold"
-      "quantity": int,             # Trading quantity
-      "confidence": float,         # Confidence (0-1) (may be hybrid confidence)
-      "agent_signals": [           # Signals from each agent
-          {
-              "agent": str,        # Agent name
-              "signal": str,       # "bullish", "bearish", "neutral"
-              "confidence": float  # Confidence (0-1)
-          }
-      ],
-      "reasoning": str            # Decision rationale (may include debate summary and LLM assessment)
-   }
-   ```
-
-#### Data Flow Process
-
-1. **Data Collection Stage**
-
-   - Market Data Agent obtains real-time market data through akshare API:
-     - Stock real-time quotes (`stock_zh_a_spot_em`)
-     - Historical market data (`stock_zh_a_hist`)
-     - Financial indicator data (`stock_financial_analysis_indicator`)
-     - Financial statement data (`stock_financial_report_sina`)
-   - News data is obtained through Sina Finance API
-   - All data undergoes standardization processing and formatting
-
-2. **Analysis Stage**
-
-   - Technical Analyst: Calculates technical indicators, analyzes price patterns, generates technical analysis scores and recommendations.
-   - Fundamentals Analyst: Analyzes financial statements, evaluates fundamentals, generates fundamental analysis scores.
-   - Sentiment Analyst: Analyzes market news, uses AI models to evaluate sentiment, generates market sentiment scores.
-   - Valuation Analyst: Calculates valuation indicators, performs DCF valuation, assesses intrinsic value.
-   - Researcher Bull/Bear: Conducts in-depth analysis from their respective standpoints, prepares debate materials.
-
-3. **Debate and Evaluation Stage (Debate Room)**
-
-   - Bull and bear researchers submit their viewpoints.
-   - The system summarizes viewpoints, potentially assisted by LLM to generate structured analysis.
-   - LLM acts as a third party to objectively evaluate viewpoints and provide scores.
-   - Calculates hybrid confidence.
-
-4. **Risk Assessment Stage**
-   Risk Manager comprehensively considers multiple dimensions:
-
-   - Market risk assessment (volatility, Beta, etc.)
-   - Position size limit calculation
-   - Stop-loss and take-profit level setting
-   - Portfolio risk control
-   - Integration of enhanced signals from the debate room.
-
-5. **Decision Stage**
-   Portfolio Manager makes decisions based on the following factors:
-
-   - Signal strength and confidence from each Agent.
-   - Comprehensive conclusions and hybrid confidence from the debate room.
-   - Current market conditions and risk levels.
-   - Portfolio status and cash levels.
-   - Trading costs and liquidity considerations.
-
-6. **Data Storage and Caching**
-
-   - Sentiment analysis results are cached in `data/sentiment_cache.json`
-   - News data is saved in the `data/stock_news/` directory
-   - Log files are stored by type in the `logs/` directory
-   - API call records are written to logs in real-time
-
-7. **Monitoring and Feedback**
-   - All API calls have detailed log records
-   - The analysis process of each Agent can be tracked
-   - System decision process (including debate phase) is transparent and queryable
-   - Backtesting results provide performance evaluation
-
-### Agent Collaboration Mechanism
-
-1. **Information Sharing**
-
-   - All agents share the same state object (AgentState) or pass information through clearly defined data structures.
-   - Communication occurs through message passing mechanisms or sequential calls.
-   - Each agent can access necessary historical data and preceding analysis results.
-
-2. **Decision Weighting and Fusion**
-   Portfolio Manager considers the weights of different signals when making decisions, combined with the hybrid confidence from the debate room:
-
-   - Valuation analysis: (example weight) 35%
-   - Fundamental analysis: (example weight) 30%
-   - Technical analysis: (example weight) 25%
-   - Sentiment analysis: (example weight) 10%
-   - Debate room conclusion: May serve as an important adjustment factor or independent confidence source for the final decision.
-
-3. **Risk Control**
-   - Mandatory risk limits
-   - Maximum position limits
-   - Trading size limits
-   - Stop-loss and take-profit settings
-
-### System Features
-
-1. **Multi-LLM Support**
-
-   - Supports Google Gemini API
-   - Supports any LLM service compatible with OpenAI API format (such as Huawei Cloud Pangu, OpenRouter, etc.)
-   - Smart switching function: Automatically selects available LLM services
-
-2. **Modular Design**
-
-   - Each agent is an independent module
-   - Easy to maintain and upgrade
-   - Can be tested and optimized individually
-
-3. **Scalability**
-
-   - Can easily add new analyst or researcher roles
-   - Supports adding new data sources
-   - Can expand decision strategies and debate mechanisms
-
-4. **Risk Management**
-
-   - Multi-level risk control
-   - Real-time risk assessment
-   - Automatic stop-loss mechanism (planned or partially implemented)
-
-5. **Intelligent Decision-Making and Explainability**
-   - Based on multi-dimensional analysis and multi-party viewpoint game theory
-   - Considers multiple market factors
-   - Dynamically adjusts strategies
-   - Enhances transparency and explainability of the decision process through `--show-reasoning` and debate room mechanisms
 
 ### Future Outlook
 
-1. **Data Source Expansion**
+**- Integration with Algogene for More Comprehensive Data**:
+  - Objective: To expand data sources, thereby enhancing the breadth and depth of analysis.
+  - Potential of Algogene: Access to more detailed market data, richer company announcements and news, and supplementary macroeconomic data.
+  - Challenges: API integration, data cleansing, and format unification.
+**- Exploration of More Flexible AI Combinations & Strategy Generation:**
+  - Objective: To transcend fixed agent interaction flows, enabling more adaptable and intelligent strategy construction.
+  - Prospective Ideas:
+    - Allowing dynamic agent selection and combination.
+    - Implementing LLM-driven recommendations for agent workflows.
+    - Utilizing LLMs for the generation of initial trading strategy logic.
+  - Value Proposition: Catering to diverse use cases, thereby enhancing system adaptability and intelligence.
+**- Interfacing with the Algogene Platform for Strategy Execution & Backtesting:**
+  - Objective: To translate AI-driven analysis into executable strategies on the Algogene platform and to validate these strategies.
+  - Implementation Pathway:
+    - Converting system decisions into Algogene-compatible orders.
+    - Employing Algogene trading APIs for execution.
+    - Leveraging Algogene for backtesting and live testing.
+  - Value Proposition: Creating a closed-loop system from AI analysis to execution and validation.
 
-   - Add more A-share data sources (such as structured data for financial reports and announcements)
-   - Connect to more financial data platforms
-   - Add alternative data such as social media sentiment data and industry research reports
-   - Expand to Hong Kong and US stock markets
-
-2. **Feature Enhancement**
-
-   - Add more complex technical indicators and quantitative strategy factors
-   - Implement a more complete and automated backtesting system, supporting parameter optimization
-   - Support multi-stock portfolio management and dynamic position adjustment
-   - Enhance LLM application in strategy generation, code explanation, market summaries, etc.
-
-3. **Performance Optimization**
-   - Improve data processing efficiency, optimize inter-Agent communication
-   - Optimize decision algorithms and LLM call efficiency
-   - Increase parallel processing capability, supporting larger-scale analysis tasks
-
-### Sentiment Analysis Feature (Sentiment Agent)
-
-The Sentiment Agent is one of the key components in the system, responsible for analyzing the potential impact of market news and public opinion on stocks.
-
-#### Feature Characteristics
-
-1. **News Data Collection**
-
-   - Automatically scrapes the latest stock-related news
-   - Supports multiple news sources (currently mainly Sina Finance)
-   - Updates news data in real-time (based on call frequency)
-
-2. **Sentiment Analysis Processing**
-
-   - Uses advanced AI models (LLM) to analyze news sentiment
-   - Sentiment score range: -1 (extremely negative) to 1 (extremely positive)
-   - Considers the importance and timeliness of news (implicit or explicit)
-
-3. **Trading Signal Generation**
-   - Generates trading signals based on sentiment analysis results
-   - Includes signal type (bullish/bearish/neutral)
-   - Provides confidence assessment
-   - Includes detailed analysis rationale (possibly summarized by LLM)
-
-#### Sentiment Score Description
-
-- **1.0**: Extremely positive (major positive news, better-than-expected performance, supportive industry policies)
-- **0.5 to 0.9**: Positive (performance growth, new project implementation, order acquisition)
-- **0.1 to 0.4**: Slightly positive (small contract signing, normal daily operations)
-- **0.0**: Neutral (routine announcements, personnel changes, news with no significant impact)
-- **-0.1 to -0.4**: Slightly negative (small litigation, non-core business losses)
-- **-0.5 to -0.9**: Negative (performance decline, loss of important customers, tightening industry policies)
-- **-1.0**: Extremely negative (major violations, serious losses in core business, regulatory penalties)
 
 ## 🙏 Acknowledgements
 
