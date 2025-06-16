@@ -116,7 +116,9 @@ def researcher_bull_agent(state: AgentState):
     macro_signal = macro_news_signals.get("signal", "neutral")
     macro_confidence_str = str(macro_news_signals.get("confidence", "0%"))
     # Try to get a summary, fallback to reasoning if summary key doesn't exist
-    macro_summary = macro_news_signals.get("summary", macro_news_signals.get("reasoning", "No specific macro summary provided."))
+    macro_summary = macro_news_signals.get("policy_impact_summary", 
+                                          macro_news_signals.get("market_outlook_short_term",
+                                          "No specific macro summary provided."))
 
     if macro_signal == "bullish":
         bullish_points.append(

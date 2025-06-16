@@ -28,224 +28,202 @@ def get_latest_message_by_name(messages: list, name: str):
 
 @agent_endpoint("portfolio_management", "负责投资组合管理和最终交易决策")
 def portfolio_management_agent(state: AgentState):
-    """Responsible for portfolio management"""
     agent_name = "portfolio_management_agent"
-    logger.info(f"\n--- DEBUG: {agent_name} START ---")
+    show_workflow_status(f"{agent_name}: --- Executing Portfolio Management Agent ---")
 
-    # Log raw incoming messages
-    # logger.info(
-    # f"--- DEBUG: {agent_name} RAW INCOMING messages: {[msg.name for msg in state['messages']]} ---")
-    # for i, msg in enumerate(state['messages']):
-    #     logger.info(
-    #         f"  DEBUG RAW MSG {i}: name='{msg.name}', content_preview='{str(msg.content)[:100]}...'")
+    # 获取所有上游agent的最新消息内容
+    messages = state.get("messages", [])
+    data = state.get("data", {})
+    
+    # 技术分析
+    technical_analysis_msg = next((m.content for m in reversed(messages) if m.name == "technical_analyst_agent"), "技术分析结果不可用。")
+    # 基本面分析
+    fundamentals_analysis_msg = next((m.content for m in reversed(messages) if m.name == "fundamentals_agent"), "基本面分析结果不可用。")
+    # 情绪分析
+    sentiment_analysis_msg = next((m.content for m in reversed(messages) if m.name == "sentiment_agent"), "情绪分析结果不可用。")
+    # 研究员 (牛市或熊市)
+    researcher_bull_msg = next((m.content for m in reversed(messages) if m.name == "researcher_bull_agent"), None)
+    researcher_bear_msg = next((m.content for m in reversed(messages) if m.name == "researcher_bear_agent"), None)
+    researcher_analysis_msg = researcher_bull_msg or researcher_bear_msg or "研究员分析结果不可用。"
+    
+    # 宏观新闻分析 (从 state["data"] 获取解析后的字典)
+    macro_news_data = data.get("macro_news_analysis_result") # This should be a dictionary
+    macro_news_summary_for_llm = "宏观新闻分析不可用或未提供。"
+    macro_sentiment_signal = "neutral" # Default
+    macro_sentiment_confidence = 0.0 # Default
 
-    # Clean and unique messages by agent name, taking the latest if duplicates exist
-    # This is crucial because this agent is a sink for multiple paths.
-    unique_incoming_messages = {}
-    for msg in state["messages"]:
-        # Keep overriding with later messages to get the latest by name
-        unique_incoming_messages[msg.name] = msg
+    if isinstance(macro_news_data, dict):
+        macro_sentiment_signal = macro_news_data.get("overall_sentiment", "neutral")
+        macro_sentiment_confidence = macro_news_data.get("sentiment_confidence", 0.0)
+        key_themes = ", ".join(macro_news_data.get("key_hot_sectors_or_themes", []))
+        potential_risks = ", ".join(macro_news_data.get("key_potential_risks", []))
+        policy_impact = macro_news_data.get("policy_impact_summary", "N/A")
+        market_outlook = macro_news_data.get("market_outlook_short_term", "N/A")
+        # detailed_report = macro_news_data.get("detailed_analysis_report", "详细报告不可用。") # 可选，如果prompt需要完整报告
 
-    cleaned_messages_for_processing = list(unique_incoming_messages.values())
-    # logger.info(
-    # f"--- DEBUG: {agent_name} CLEANED messages for processing: {[msg.name for msg in cleaned_messages_for_processing]} ---")
+        macro_news_summary_for_llm = (
+            f"Overall Sentiment: {macro_sentiment_signal} (Confidence: {macro_sentiment_confidence:.2f}).\n"
+            f"Key Themes/Sectors: {key_themes if key_themes else 'None identified'}.\n"
+            f"Potential Risks: {potential_risks if potential_risks else 'None identified'}.\n"
+            f"Policy Impact: {policy_impact}.\n"
+            f"Market Outlook: {market_outlook}."
+            # f"Detailed Report Snippet: {detailed_report[:200]}..." # 仅传递摘要或关键点给LLM
+        )
+    elif isinstance(macro_news_data, str) : # Fallback if it's somehow still a string (e.g. old cache not converted)
+        try:
+            # Try to parse if it's a JSON string
+            parsed_data_fallback = json.loads(macro_news_data)
+            if isinstance(parsed_data_fallback, dict) and "detailed_analysis_report" in parsed_data_fallback:
+                 # It was a JSON string of the new format
+                macro_sentiment_signal = parsed_data_fallback.get("overall_sentiment", "neutral")
+                macro_sentiment_confidence = parsed_data_fallback.get("sentiment_confidence", 0.0)
+                # ... (repopulate other fields as above) ...
+                macro_news_summary_for_llm = f"Overall Sentiment: {macro_sentiment_signal} (Confidence: {macro_sentiment_confidence:.2f}) ... [Data from fallback string parse]"
+            else: # It was some other string
+                macro_news_summary_for_llm = f"宏观新闻分析（原始文本）: {macro_news_data[:300]}..." # Truncate if it's plain text
+        except json.JSONDecodeError: # It's plain text
+             macro_news_summary_for_llm = f"宏观新闻分析（原始文本）: {macro_news_data[:300]}..."
 
-    show_workflow_status(f"{agent_name}: --- Executing Portfolio Manager ---")
-    show_reasoning_flag = state["metadata"]["show_reasoning"]
-    portfolio = state["data"]["portfolio"]
 
-    # Get messages from other agents using the cleaned list
-    technical_message = get_latest_message_by_name(
-        cleaned_messages_for_processing, "technical_analyst_agent")
-    fundamentals_message = get_latest_message_by_name(
-        cleaned_messages_for_processing, "fundamentals_agent")
-    sentiment_message = get_latest_message_by_name(
-        cleaned_messages_for_processing, "sentiment_agent")
-    risk_message = get_latest_message_by_name(
-        cleaned_messages_for_processing, "risk_management_agent")
-    tool_based_macro_message = get_latest_message_by_name(
-        cleaned_messages_for_processing, "macro_analyst_agent")  # This is the main analysis path output
+    current_portfolio = data.get("portfolio", {"cash": 100000, "stock": 0, "avg_price": 0, "unrealized_pnl": 0, "portfolio_value":100000})
+    current_portfolio_str = json.dumps(current_portfolio, ensure_ascii=False)
 
-    # Extract content, handling potential None if message not found by get_latest_message_by_name
-    technical_content = technical_message.content if technical_message else json.dumps(
-        {"signal": "error", "details": "Technical message missing"})
-    fundamentals_content = fundamentals_message.content if fundamentals_message else json.dumps(
-        {"signal": "error", "details": "Fundamentals message missing"})
-    sentiment_content = sentiment_message.content if sentiment_message else json.dumps(
-        {"signal": "error", "details": "Sentiment message missing"})
-    risk_content = risk_message.content if risk_message else json.dumps(
-        {"signal": "error", "details": "Risk message missing"})
-    tool_based_macro_content = tool_based_macro_message.content if tool_based_macro_message else json.dumps(
-        {"signal": "error", "details": "Tool-based Macro message missing"})
+    # 构建系统提示词
+    system_message_content = f"""You are the Portfolio Manager of a hedge fund team. Your responsibility is to make the final trading decision based on the team's analysis.
+    
+Team Members Analysis:
+- "technical_analyst_agent": (Provides technical indicators and price signals)
+- "fundamentals_agent": (Provides fundamental analysis and value insights)  
+- "sentiment_agent": (Provides sentiment analysis from news and social media)
+- "macro_news_agent": (Provides structured macro market analysis including overall_sentiment, sentiment_confidence, key_themes, risks, and outlook)
+- "researcher_bull_agent" or "researcher_bear_agent": (Provides focused research based on supervisor's direction)
 
-    # Market-wide news summary from macro_news_agent (already correctly fetched from state["data"])
-    market_wide_news_summary_content = state["data"].get(
-        "macro_news_analysis_result", "大盘宏观新闻分析不可用或未提供。")
-    # Optional: also try to get the message object for consistency in agent_signals, though data field is primary source
-    macro_news_agent_message_obj = get_latest_message_by_name(
-        cleaned_messages_for_processing, "macro_news_agent")
+Current Portfolio: {current_portfolio_str}
 
-    system_message_content = """You are a portfolio manager making final trading decisions.
-            Your job is to make a trading decision based on the team's analysis while strictly adhering
-            to risk management constraints.
+Your decision must be one of: "buy", "sell", or "hold".
+If "buy" or "sell", specify "quantity" as a positive integer (e.g. 100, 200). For "hold", quantity should be 0.
+The "confidence" score should be between 0.0 and 1.0.
 
-            RISK MANAGEMENT CONSTRAINTS:
-            - You MUST NOT exceed the max_position_size specified by the risk manager
-            - You MUST follow the trading_action (buy/sell/hold) recommended by risk management
-            - These are hard constraints that cannot be overridden by other signals
+Provide your analysis in JSON format only, with no other text or explanations:
+{{
+    "action": "buy|sell|hold",
+    "quantity": "<integer>",
+    "confidence": "<float, 0.0-1.0>",
+    "reasoning": "<brief explanation of your decision, considering all inputs>",
+    "agent_signals": [
+        {{"agent_name": "technical_analyst_agent", "signal": "<parsed_signal_or_summary>", "confidence": "<parsed_confidence_or_default>"}},
+        {{"agent_name": "fundamentals_agent", "signal": "<parsed_signal_or_summary>", "confidence": "<parsed_confidence_or_default>"}},
+        {{"agent_name": "sentiment_agent", "signal": "<parsed_signal_or_summary>", "confidence": "<parsed_confidence_or_default>"}},
+        {{"agent_name": "macro_news_agent", "signal": "{macro_sentiment_signal}", "confidence": {macro_sentiment_confidence}}},
+        {{"agent_name": "researcher_bull_agent_or_researcher_bear_agent", "signal": "<parsed_signal_or_summary>", "confidence": "<parsed_confidence_or_default>"}}
+    ]
+}}"""
 
-            When weighing the different signals for direction and timing:
-            1. Fundamental Analysis (Weight 35%)
-            2. Technical Analysis (Weight 30%)
-            3. Macro Analysis (Weight 25%) - This encompasses TWO inputs:
-               a) General Macro Environment (from Macro Analyst Agent, tool-based)
-               b) Daily Market-Wide News Summary (from Macro News Agent)
-               Both provide context for external risks and opportunities.
-            4. Sentiment Analysis (Weight 10%)
-            
-            The decision process should be:
-            1. First check risk management constraints
-            2. Then evaluate fundamentals signal
-            3. Consider BOTH the General Macro Environment AND the Daily Market-Wide News Summary.
-            4. Use technical analysis for timing
-            5. Consider sentiment for final adjustment
-           
-            Provide the following in your output JSON:
-            - "action": "buy" | "sell" | "hold",
-            - "quantity": <positive integer>
-            - "confidence": <float between 0 and 1>
-            - "agent_signals": <list of agent signals including agent name, signal (bullish | bearish | neutral), and their confidence>.
-              IMPORTANT: Your 'agent_signals' list MUST include entries for:
-                - "technical_analysis"
-                - "fundamental_analysis"
-                - "sentiment_analysis"
-                - "risk_management"
-                - "selected_stock_macro_analysis" (representing the tool-based macro input from macro_analyst_agent)
-                - "market_wide_news_summary(SH and SZ 300 Index)" (representing the daily news summary input from macro_news_agent - provide a brief signal like bullish/bearish/neutral for the news summary itself, or state if it was primarily factored into overall reasoning with confidence reflecting its impact)
-            - "reasoning": <concise explanation of the decision including how you weighted ALL signals, including both macro inputs>
-
-            Trading Rules:
-            - Never exceed risk management position limits
-            - Only buy if you have available cash
-            - Only sell if you have shares to sell
-            - Quantity must be ≤ current position for sells
-            - Quantity must be ≤ max_position_size from risk management"""
-    system_message = {
-        "role": "system",
-        "content": system_message_content
-    }
-
+    # 构建用户消息内容
     user_message_content = f"""Based on the team's analysis below, make your trading decision.
+    
+Technical Analysis (from technical_analyst_agent):
+{technical_analysis_msg}
 
-            Technical Analysis Signal: {technical_content}
-            Fundamental Analysis Signal: {fundamentals_content}
-            Sentiment Analysis Signal: {sentiment_content}
-            Risk Management Signal: {risk_content}
-            General Macro Analysis (from Macro Analyst Agent): {tool_based_macro_content}
-            Daily Market-Wide News Summary (from Macro News Agent):
-            {market_wide_news_summary_content}
+Fundamentals Analysis (from fundamentals_agent):
+{fundamentals_analysis_msg}
 
-            Current Portfolio:
-            Cash: {portfolio['cash']:.2f}
-            Current Position: {portfolio['stock']} shares
+Sentiment Analysis (from sentiment_agent):
+{sentiment_analysis_msg}
 
-            Output JSON only. Ensure 'agent_signals' includes all required agents as per system prompt."""
-    user_message = {
-        "role": "user",
-        "content": user_message_content
-    }
+Macro News Analysis (from macro_news_agent):
+{macro_news_summary_for_llm}
+
+Focused Research (from researcher_bull_agent or researcher_bear_agent):
+{researcher_analysis_msg}
+
+Current Portfolio: {current_portfolio_str}
+
+Output JSON only. Ensure 'agent_signals' includes all required agents as per system prompt, using their actual signals and confidences if available, or a neutral summary otherwise.
+For 'macro_news_agent' in 'agent_signals', use the overall_sentiment as its signal and sentiment_confidence as its confidence.
+"""
 
     show_agent_reasoning(
-        agent_name, f"Preparing LLM. User msg includes: TA, FA, Sent, Risk, GeneralMacro, MarketNews.")
+        f"System Prompt for LLM:\n{system_message_content}", agent_name)
+    show_agent_reasoning(
+        f"User Message for LLM:\n{user_message_content}", agent_name)
 
-    llm_interaction_messages = [system_message, user_message]
-    llm_response_content = get_chat_completion(llm_interaction_messages)
-
-    current_metadata = state["metadata"]
-    current_metadata["current_agent_name"] = agent_name
-
-    def get_llm_result_for_logging_wrapper():
-        return llm_response_content
-    log_llm_interaction(state)(get_llm_result_for_logging_wrapper)()
-
-    if llm_response_content is None:
-        show_agent_reasoning(
-            agent_name, "LLM call failed. Using default conservative decision.")
-        # Ensure the dummy response matches the expected structure for agent_signals
-        llm_response_content = json.dumps({
-            "action": "hold",
-            "quantity": 0,
-            "confidence": 0.7,
-            "agent_signals": [
-                {"agent_name": "technical_analysis",
-                    "signal": "neutral", "confidence": 0.0},
-                {"agent_name": "fundamental_analysis",
-                    "signal": "neutral", "confidence": 0.0},
-                {"agent_name": "sentiment_analysis",
-                    "signal": "neutral", "confidence": 0.0},
-                # {"agent_name": "valuation_analysis", # Removed
-                #     "signal": "neutral", "confidence": 0.0}, # Removed
-                {"agent_name": "risk_management",
-                    "signal": "hold", "confidence": 1.0},
-                {"agent_name": "macro_analyst_agent",
-                    "signal": "neutral", "confidence": 0.0},
-                {"agent_name": "macro_news_agent",
-                    "signal": "unavailable_or_llm_error", "confidence": 0.0}
-            ],
-            "reasoning": "LLM API error. Defaulting to conservative hold based on risk management."
-        })
-
-    final_decision_message = HumanMessage(
-        content=llm_response_content,
-        name=agent_name,
-    )
-
-    if show_reasoning_flag:
-        show_agent_reasoning(
-            agent_name, f"Final LLM decision JSON: {llm_response_content}")
-
-    agent_decision_details_value = {}
+    llm_response_content = "{\"action\": \"hold\", \"quantity\": 0, \"confidence\": 0.5, \"reasoning\": \"Default hold due to LLM call issue.\", \"agent_signals\": []}"
     try:
-        decision_json = json.loads(llm_response_content)
-        agent_decision_details_value = {
-            "action": decision_json.get("action"),
-            "quantity": decision_json.get("quantity"),
-            "confidence": decision_json.get("confidence"),
-            "reasoning_snippet": decision_json.get("reasoning", "")[:150] + "..."
-        }
+        response = get_chat_completion(
+            messages=[
+                {"role": "system", "content": system_message_content},
+                {"role": "user", "content": user_message_content}
+            ]
+        )
+        if response:
+            llm_response_content = response.strip()
+            # Ensure it's valid JSON, remove markdown if any
+            if llm_response_content.startswith("```json"):
+                llm_response_content = llm_response_content[7:]
+            if llm_response_content.endswith("```"):
+                llm_response_content = llm_response_content[:-3]
+            llm_response_content = llm_response_content.strip()
+            
+            # Validate JSON
+            try:
+                json.loads(llm_response_content) # Test parsing
+            except json.JSONDecodeError as je:
+                logger.error(f"{agent_name}: LLM returned invalid JSON for portfolio decision: {llm_response_content[:200]}... Error: {je}")
+                # Fallback to a default hold decision if JSON is malformed
+                llm_response_content = json.dumps({
+                    "action": "hold", "quantity": 0, "confidence": 0.1, 
+                    "reasoning": f"LLM response was not valid JSON. Original: {llm_response_content[:100]}",
+                    "agent_signals": [
+                        {"agent_name": "technical_analyst_agent", "signal": "error_parsing_llm", "confidence": 0.0},
+                        {"agent_name": "fundamentals_agent", "signal": "error_parsing_llm", "confidence": 0.0},
+                        {"agent_name": "sentiment_agent", "signal": "error_parsing_llm", "confidence": 0.0},
+                        {"agent_name": "macro_news_agent", "signal": macro_sentiment_signal, "confidence": macro_sentiment_confidence}, # Use parsed macro
+                        {"agent_name": "researcher_bull_agent_or_researcher_bear_agent", "signal": "error_parsing_llm", "confidence": 0.0}
+                    ]
+                })
+
+        else:
+            logger.error(f"{agent_name}: LLM call returned no response.")
+            # llm_response_content remains the default hold
+            
+    except Exception as e:
+        logger.error(f"{agent_name}: Exception during LLM call: {e}")
+        # llm_response_content remains the default hold
+
+    show_agent_reasoning(
+        f"LLM Response (Portfolio Decision JSON):\n{llm_response_content}", agent_name)
+    
+    # 将决策结果添加到消息列表，并更新状态
+    # The content of the HumanMessage should be the JSON string of the decision
+    final_decision_message = HumanMessage(content=llm_response_content, name=agent_name)
+    
+    # The data stored in AgentState should be the parsed dictionary of the decision
+    try:
+        final_decision_dict = json.loads(llm_response_content)
     except json.JSONDecodeError:
-        agent_decision_details_value = {
-            "error": "Failed to parse LLM decision JSON from portfolio manager",
-            "raw_response_snippet": llm_response_content[:200] + "..."
+        logger.error(f"{agent_name}: Could not parse final_decision_content to dict. Storing raw string.")
+        final_decision_dict = {"error": "Failed to parse final decision JSON", "raw_response": llm_response_content}
+
+
+    agent_details_for_metadata = {
+        "llm_decision_json_preview": llm_response_content[:150] + "..." if len(llm_response_content) > 150 else llm_response_content,
+        "inputs_considered": {
+            "technical": technical_analysis_msg[:100]+"...",
+            "fundamentals": fundamentals_analysis_msg[:100]+"...",
+            "sentiment": sentiment_analysis_msg[:100]+"...",
+            "macro_news": macro_news_summary_for_llm[:100]+"...",
+            "researcher": researcher_analysis_msg[:100]+"..."
         }
+    }
 
-    show_workflow_status(f"{agent_name}: --- Portfolio Manager Completed ---")
-
-    # The portfolio_management_agent is a terminal or near-terminal node in terms of new message generation for the main state.
-    # It should return its own decision, and an updated state["messages"] that includes its decision.
-    # As it's a汇聚点, it should ideally start with a cleaned list of messages from its inputs.
-    # The cleaned_messages_for_processing already did this. We append its new message to this cleaned list.
-
-    # If we strictly want to follow the pattern of `state["messages"] + [new_message]` for all non-leaf nodes,
-    # then the `cleaned_messages_for_processing` should become the new `state["messages"]` for this node's context.
-    # However, for simplicity and robustness, let's assume its output `messages` should just be its own message added to the cleaned input it processed.
-
-    final_messages_output = cleaned_messages_for_processing + [final_decision_message]
-    # Alternative if we want to be super strict about adding to the raw incoming state["messages"]:
-    # final_messages_output = state["messages"] + [final_decision_message]
-    # But this ^ is prone to the duplication we are trying to solve if not careful.
-    # The most robust is that portfolio_manager provides its clear output, and the graph handles accumulation if needed for further steps (none in this case as it's END).
-
-    # logger.info(
-    # f"--- DEBUG: {agent_name} RETURN messages: {[msg.name for msg in final_messages_output]} ---")
-
+    show_workflow_status(f"{agent_name}: Execution finished.")
     return {
-        "messages": final_messages_output,
-        "data": state["data"],
+        "messages": messages + [final_decision_message], # Add new decision message
+        "data": {**data, "final_portfolio_decision": final_decision_dict}, # Store parsed decision dict
         "metadata": {
             **state["metadata"],
-            f"{agent_name}_decision_details": agent_decision_details_value,
-            "agent_reasoning": llm_response_content
+            f"{agent_name}_details": agent_details_for_metadata
         }
     }
 

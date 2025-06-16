@@ -115,7 +115,9 @@ def researcher_bear_agent(state: AgentState):
     # Macro News Analysis # Added section
     macro_signal = macro_news_signals.get("signal", "neutral")
     macro_confidence_str = str(macro_news_signals.get("confidence", "0%"))
-    macro_summary = macro_news_signals.get("summary", macro_news_signals.get("reasoning", "No specific macro summary provided."))
+    macro_summary = macro_news_signals.get("policy_impact_summary", 
+                                          macro_news_signals.get("market_outlook_short_term",
+                                          "No specific macro summary provided."))
 
     if macro_signal == "bearish":
         bearish_points.append(

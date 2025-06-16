@@ -131,18 +131,18 @@ class Backtester:
                             "analyst_signals": {}
                         }
 
-                        # 处理智能体信号
-                        if "agent_signals" in parsed_result:
+                        # 处理智能体信号 - 修复：agent_signals 在 decision 下面，字段名是 agent_name
+                        if "decision" in parsed_result and "agent_signals" in parsed_result["decision"]:
                             formatted_result["analyst_signals"] = {
-                                signal["agent"]: {
+                                signal["agent_name"]: {  # 修复：使用 agent_name 而不是 agent
                                     "signal": signal.get("signal", "unknown"),
                                     "confidence": signal.get("confidence", 0)
                                 }
-                                for signal in parsed_result["agent_signals"]
+                                for signal in parsed_result["decision"]["agent_signals"]
                             }
 
                         self.logger.info(
-                            f"解析后的决策: {formatted_result['decision']}")  # 添加日志
+                            f"解析后的决策: {formatted_result['decision']}")
                         return formatted_result
                     return result
                 except json.JSONDecodeError as e:
@@ -361,14 +361,15 @@ class Backtester:
         # 创建两个子图
         fig, (ax1, ax2) = plt.subplots(
             2, 1, figsize=(12, 10), height_ratios=[1, 1])
-        fig.suptitle("回测结果分析", fontsize=12)
+        fig.suptitle("Backtest Results Analysis", fontsize=14, fontweight='bold')
 
         # 绘制资金变化图
         line1 = ax1.plot(performance_df.index,
-                         performance_df["Portfolio Value (K)"], label="组合价值", marker='o')
-        ax1.set_ylabel("组合价值 (千元)")
-        ax1.set_title("组合价值变化")
-        ax1.grid(True)
+                         performance_df["Portfolio Value (K)"], label="Portfolio Value", marker='o', linewidth=2, markersize=4)
+        ax1.set_ylabel("Portfolio Value (K CNY)", fontsize=12)
+        ax1.set_title("Portfolio Value Over Time", fontsize=12, fontweight='bold')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend()
 
         # 在数据点上添加标签
         for x, y in zip(performance_df.index, performance_df["Portfolio Value (K)"]):
@@ -380,23 +381,31 @@ class Backtester:
                          fontsize=8)
 
         # 绘制收益率变化图
+        colors = ['green' if x >= 0 else 'red' for x in performance_df["Cumulative Return"]]
         line2 = ax2.plot(performance_df.index,
-                         performance_df["Cumulative Return"], label="累计收益率", color='green', marker='o')
-        ax2.set_ylabel("累计收益率 (%)")
-        ax2.set_title("累计收益率变化")
-        ax2.grid(True)
+                         performance_df["Cumulative Return"], label="Cumulative Return", color='green', marker='o', linewidth=2, markersize=4)
+        ax2.set_ylabel("Cumulative Return (%)", fontsize=12)
+        ax2.set_title("Cumulative Return Over Time", fontsize=12, fontweight='bold')
+        ax2.grid(True, alpha=0.3)
+        ax2.legend()
+        
+        # 添加零线
+        ax2.axhline(y=0, color='black', linestyle='--', alpha=0.5)
 
         # 在数据点上添加标签
         for x, y in zip(performance_df.index, performance_df["Cumulative Return"]):
+            color = 'green' if y >= 0 else 'red'
             ax2.annotate(f'{y:.2f}%',
                          (x, y),
                          textcoords="offset points",
                          xytext=(0, 10),
                          ha='center',
-                         fontsize=8)
+                         fontsize=8,
+                         color=color,
+                         fontweight='bold')
 
         # 设置x轴标签
-        plt.xlabel("日期")
+        ax2.set_xlabel("Date", fontsize=12)
 
         # 自动调整布局以防止标签重叠
         plt.tight_layout()
@@ -407,16 +416,16 @@ class Backtester:
         # 计算和打印性能指标
         total_return = (
             self.portfolio["portfolio_value"] - self.initial_capital) / self.initial_capital
-        print(f"\n总收益率: {total_return * 100:.2f}%")
+        print(f"\nTotal Return: {total_return * 100:.2f}%")
 
         # 记录最终回测结果
         self.backtest_logger.info("\n" + "=" * 50)
-        self.backtest_logger.info("回测结果汇总")
+        self.backtest_logger.info("Backtest Results Summary")
         self.backtest_logger.info("=" * 50)
-        self.backtest_logger.info(f"初始资金: {self.initial_capital:,.2f}")
+        self.backtest_logger.info(f"Initial Capital: {self.initial_capital:,.2f}")
         self.backtest_logger.info(
-            f"最终总值: {self.portfolio['portfolio_value']:,.2f}")
-        self.backtest_logger.info(f"总收益率: {total_return * 100:.2f}%")
+            f"Final Portfolio Value: {self.portfolio['portfolio_value']:,.2f}")
+        self.backtest_logger.info(f"Total Return: {total_return * 100:.2f}%")
 
         # 计算夏普比率
         daily_returns = performance_df["Daily Return"] / 100  # 转换为小数
@@ -424,15 +433,15 @@ class Backtester:
         std_daily_return = daily_returns.std()
         sharpe_ratio = (mean_daily_return / std_daily_return) * \
             (252 ** 0.5) if std_daily_return != 0 else 0
-        # print(f"夏普比率: {sharpe_ratio:.2f}")
-        self.backtest_logger.info(f"夏普比率: {sharpe_ratio:.2f}")
+        print(f"Sharpe Ratio: {sharpe_ratio:.2f}")
+        self.backtest_logger.info(f"Sharpe Ratio: {sharpe_ratio:.2f}")
 
         # 计算最大回撤
         rolling_max = performance_df["Portfolio Value"].cummax()
         drawdown = (performance_df["Portfolio Value"] / rolling_max - 1) * 100
         max_drawdown = drawdown.min()
-        # print(f"最大回撤: {max_drawdown:.2f}%")
-        self.backtest_logger.info(f"最大回撤: {max_drawdown:.2f}%")
+        print(f"Maximum Drawdown: {max_drawdown:.2f}%")
+        self.backtest_logger.info(f"Maximum Drawdown: {max_drawdown:.2f}%")
 
         return performance_df
 
