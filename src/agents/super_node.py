@@ -26,6 +26,8 @@ from src.utils.logging_config import setup_logger
 # 导入可用的工具
 from src.tools.api import get_financial_metrics, get_financial_statements, get_market_data, get_price_history
 from src.tools.news_crawler import get_stock_news, get_news_sentiment
+# 导入Algogene包装函数
+from src.tools.algogene_client import get_algogene_price_history, get_algogene_realtime_price
 
 # 设置日志记录
 logger = setup_logger('super_node_agent')
@@ -160,6 +162,57 @@ AVAILABLE_TOOLS = {
             "news_list: list - 新闻列表，来自get_stock_news的返回结果",
             "num_of_news: int - 分析的新闻数量，默认5条，建议3-10条"
         ]
+    },
+    "get_algogene_price_history": {
+        "function": get_algogene_price_history,
+        "description": """通过Algogene API获取指定交易工具的历史价格数据。
+        
+        返回数据包含完整的OHLC蜡烛图数据:
+        - t: 时间戳 (GMT+0格式: YYYY-MM-DD HH:MM:SS)
+        - o, h, l, c: 开盘价、最高价、最低价、收盘价
+        - b, a, m: 收盘买价、卖价、中间价
+        - v: 交易量
+        - instrument: 交易工具名称
+        
+        支持多种时间间隔:
+        - 'M': 分钟级数据
+        - 'H': 小时级数据  
+        - 'D': 日级数据
+        - 'W': 周级数据
+        - 'MN': 月级数据
+        
+        适用于: 技术分析、回测研究、量化策略开发、全球市场数据分析""",
+        "parameters": [
+            "count: int - 获取数据点数量",
+            "instrument: str - 交易工具符号，如'AAPL'、'EURUSD'、'BTCUSD'等",
+            "interval: str - 时间间隔，如'M'(分钟)、'H'(小时)、'D'(日)等",
+            "timestamp: str - 参考时间戳，格式'YYYY-MM-DD HH:MM:SS'"
+        ]
+    },
+    "get_algogene_realtime_price": {
+        "function": get_algogene_realtime_price,
+        "description": """通过Algogene API获取指定金融工具的实时市场报价数据。
+        
+        返回实时市场数据:
+        - timestamp: UTC+0时间戳
+        - bidPrice/askPrice: 实时买价/卖价
+        - bidSize/askSize: 买盘/卖盘数量
+        - bidOrderBook/askOrderBook: 买卖盘深度
+        
+        支持的经纪商:
+        - 'diginex': Diginex经纪商
+        - 'exness': Exness经纪商
+        - 'ib': Interactive Brokers
+        - 'ig': IG Markets
+        - 'oanda': OANDA
+        - 默认: 所有可用经纪商中的最新数据
+        
+        支持多种资产类型: 股票、外汇、加密货币、大宗商品等
+        适用于: 实时交易、价差监控、流动性分析、套利机会发现""",
+        "parameters": [
+            "symbols: str - 金融符号列表，用逗号分隔，如'BTCUSD,ETHUSD'或'AAPL,GOOGL'",
+            "broker: Optional[str] - 指定经纪商(可选)，如'ib'、'oanda'等"
+        ]
     }
 }
 
@@ -193,8 +246,6 @@ def safe_json_serialize(obj):
             return f"Series with {len(obj)} values"
     elif isinstance(obj, (pd.Timestamp, datetime, date)):
         return obj.isoformat()
-    elif pd.isna(obj):  # 只对标量值使用pd.isna()
-        return None
     elif isinstance(obj, (np.integer, np.int64, np.int32)):
         return int(obj)
     elif isinstance(obj, (np.floating, np.float64, np.float32)):
@@ -208,6 +259,24 @@ def safe_json_serialize(obj):
     elif isinstance(obj, (str, int, float, bool)):
         return obj
     else:
+        # 安全地检查pandas NA值 - 只对未知类型的标量值使用
+        try:
+            if hasattr(pd, 'isna') and np.isscalar(obj) and pd.isna(obj):
+                return None
+        except (TypeError, ValueError):
+            # 如果pd.isna检查失败，继续处理
+            pass
+        
+        # 检查是否为其他可迭代对象（但不是字符串）
+        try:
+            if hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes)):
+                # 对于可迭代对象，尝试转换为列表
+                return [safe_json_serialize(item) for item in obj]
+        except (TypeError, ValueError):
+            # 如果转换失败，继续到最后的处理
+            pass
+        
+        # 最后的fallback处理
         try:
             # 尝试直接序列化
             json.dumps(obj)

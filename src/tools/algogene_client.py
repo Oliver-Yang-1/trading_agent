@@ -158,6 +158,46 @@ class AlgogeneClient:
             logger.error(f"API request failed: {str(e)}")
             raise
 
+# ===== 包装函数 - 供其他模块使用 =====
+
+def get_algogene_price_history(count: int, instrument: str, interval: str, timestamp: str) -> Dict[str, Any]:
+    """
+    获取Algogene历史价格数据的包装函数
+    
+    Args:
+        count (int): 数据点数量
+        instrument (str): 交易工具符号
+        interval (str): 时间间隔
+        timestamp (str): 参考时间戳
+        
+    Returns:
+        Dict[str, Any]: 历史价格数据
+    """
+    try:
+        client = AlgogeneClient()
+        return client.get_price_history(count, instrument, interval, timestamp)
+    except Exception as e:
+        logger.error(f"Algogene价格历史数据获取失败: {e}")
+        return {"error": str(e)}
+
+def get_algogene_realtime_price(symbols: str, broker: Optional[str] = None) -> Dict[str, Any]:
+    """
+    获取Algogene实时价格数据的包装函数
+    
+    Args:
+        symbols (str): 金融符号列表，用逗号分隔
+        broker (Optional[str]): 指定经纪商
+        
+    Returns:
+        Dict[str, Any]: 实时价格数据
+    """
+    try:
+        client = AlgogeneClient()
+        return client.get_realtime_price(symbols, broker)
+    except Exception as e:
+        logger.error(f"Algogene实时价格数据获取失败: {e}")
+        return {"error": str(e)}
+
 def main():
     """
     Test function for AlgogeneClient.
@@ -183,6 +223,19 @@ def main():
             symbols="BTCUSD"
         )
         print("Real-time Price Response:", json.dumps(realtime_price, indent=2))
+        
+        # Test wrapper functions
+        print("\n=== Testing Wrapper Functions ===")
+        wrapper_history = get_algogene_price_history(
+            count=3,
+            instrument="AAPL",
+            interval="D",
+            timestamp="2025-01-01 00:00:00"
+        )
+        print("Wrapper History Response:", json.dumps(wrapper_history, indent=2))
+        
+        wrapper_realtime = get_algogene_realtime_price("EURUSD")
+        print("Wrapper Realtime Response:", json.dumps(wrapper_realtime, indent=2))
         
     except Exception as e:
         print(f"Error during testing: {str(e)}")
