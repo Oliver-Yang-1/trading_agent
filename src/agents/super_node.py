@@ -28,6 +28,8 @@ from src.tools.api import get_financial_metrics, get_financial_statements, get_m
 from src.tools.news_crawler import get_stock_news, get_news_sentiment
 # 导入Algogene包装函数
 from src.tools.algogene_client import get_algogene_price_history, get_algogene_realtime_price
+# 导入代码解释器
+from src.tools.code_interpreter import python_interpreter
 
 # 设置日志记录
 logger = setup_logger('super_node_agent')
@@ -212,6 +214,35 @@ AVAILABLE_TOOLS = {
         "parameters": [
             "symbols: str - 金融符号列表，用逗号分隔，如'BTCUSD,ETHUSD'或'AAPL,GOOGL'",
             "broker: Optional[str] - 指定经纪商(可选)，如'ib'、'oanda'等"
+        ]
+    },
+    "python_interpreter": {
+        "function": python_interpreter,
+        "description": """执行Python代码进行数据分析和处理。当你从其他工具获得数据后，使用此工具进行复杂的计算、统计分析、数据筛选和转换等操作。
+        
+        代码执行环境:
+        - 包含pandas (别名pd)和numpy (别名np)库
+        - 支持常用的数学函数和数据操作
+        - 在安全的沙箱环境中执行
+        
+        数据访问:
+        - 如果上一步的数据是表格形式或字典列表，它会被自动转换为pandas DataFrame，可通过'df'变量访问
+        - 其他数据类型通过'data'变量访问
+        - 对于Algogene API返回的数据，如果包含'res'字段的字典列表，会自动创建DataFrame
+        
+        **重要使用规则**:
+        1. 必须将最终计算结果赋值给名为'result'的变量
+        2. 可以使用print()函数输出中间结果
+        3. 支持复杂的数据分析：统计计算、筛选、聚合、可视化等
+        
+        示例用法:
+        - 计算统计指标: result = f"均值: {df['close'].mean():.2f}, 最大值: {df['high'].max()}"
+        - 数据筛选: filtered = df[df['volume'] > 1000]; result = f"高成交量记录: {len(filtered)}条"
+        - 技术分析: result = f"价格趋势: {'上涨' if df['close'].iloc[-1] > df['close'].iloc[0] else '下跌'}"
+        
+        适用于: 数据统计、技术分析、风险计算、趋势分析、复杂数据处理""",
+        "parameters": [
+            "code: str - 要执行的Python代码字符串，必须将结果赋值给'result'变量"
         ]
     }
 }
@@ -424,9 +455,10 @@ Query: {user_query}
     ]
     
     # ReAct循环
-    max_iterations = 5  # 最大迭代次数
+    max_iterations = 8  # 增加最大迭代次数，支持更复杂的分析流程
     iteration = 0
     observations = []
+    last_observation = None  # 存储上一步的观察结果，用于代码解释器
     
     while iteration < max_iterations:
         iteration += 1
@@ -488,7 +520,25 @@ Query: {user_query}
                     # 可以选择跳过此工具或要求用户提供更多信息
                 
             logger.info(f"执行工具: {tool_name} with args: {arguments}")
-            observation = execute_tool(tool_name, arguments)
+            
+            # === 核心修改：支持数据在工具间传递 ===
+            if tool_name == 'python_interpreter':
+                if last_observation is not None:
+                    # 将上一步的结果作为 'data' 参数传递给代码解释器
+                    arguments['data'] = last_observation
+                    logger.info(f"传递上一步的数据给代码解释器，数据类型: {type(last_observation)}")
+                    observation = execute_tool(tool_name, arguments)
+                else:
+                    observation = "错误：在执行 'python_interpreter' 之前没有任何数据。请先使用其他工具获取数据。"
+                    logger.warning("python_interpreter调用失败：没有上一步数据")
+            else:
+                # 对于其他普通工具，正常执行
+                observation = execute_tool(tool_name, arguments)
+            
+            # 更新 last_observation 以供下一步使用
+            last_observation = observation
+            logger.info(f"更新last_observation，类型: {type(observation)}")
+            # === 修改结束 ===
             
             # 如果observation是DataFrame，提前进行安全检查
             if isinstance(observation, pd.DataFrame):
