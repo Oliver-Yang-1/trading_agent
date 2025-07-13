@@ -1,18 +1,35 @@
-# Tools 模块文档
+# Tools Module - AI Trading System Core Tools
 
-本目录包含了交易系统所需的各种工具和API接口，为 agent 提供数据获取、分析和处理功能。
+这个模块为AI交易系统提供核心工具和API接口，包括数据获取、分析处理、AI集成等功能。系统采用模块化设计，支持多数据源、多AI服务集成。
 
-## 📁 目录结构
+## 📁 目录结构与架构
 
 ```
 src/tools/
 ├── __init__.py                 # 工具模块初始化
-├── openrouter_config.py        # LLM 客户端配置和封装
-├── algogene_client.py          # Algogene API 客户端
-├── api.py                      # 核心数据获取API
-├── data_analyzer.py            # 股票数据技术分析工具
-├── news_crawler.py             # 新闻爬虫和情感分析
-└── test_*.py                   # 测试文件
+├── openrouter_config.py        # LLM服务统一封装 (Level 1)
+├── algogene_client.py          # 国际金融数据API客户端 (Level 1)  
+├── code_interpreter.py         # Python代码执行器 (Level 1)
+├── api.py                      # A股核心数据接口 (Level 2)
+├── news_crawler.py             # 新闻爬取与情感分析 (Level 2)
+├── data_analyzer.py            # 股票技术分析工具 (Level 3)
+└── test_*.py                   # 测试文件集合
+```
+
+### 依赖层次架构
+
+```
+Level 1 - 基础工具层 (无内部依赖)
+├── openrouter_config.py    # LLM服务统一接口
+├── algogene_client.py      # 专业金融数据API
+└── code_interpreter.py     # 代码执行沙箱
+
+Level 2 - 组合工具层 (依赖Level 1)
+├── api.py                  # A股数据核心引擎
+└── news_crawler.py         # 新闻+情感分析 (依赖LLM)
+
+Level 3 - 高级工具层 (依赖Level 1+2)
+└── data_analyzer.py        # 技术分析 (依赖api.py)
 ```
 
 ## 🔧 核心模块
@@ -297,7 +314,59 @@ from src.tools.data_analyzer import analyze_stock_data
 analyze_stock_data("600519", "2023-01-01", "2023-12-31")
 ```
 
-### 5. news_crawler.py - 新闻爬虫和情感分析
+### 5. code_interpreter.py - Python代码执行器
+
+提供安全的Python代码执行环境，支持数据分析和处理。
+
+#### 主要函数
+
+##### python_interpreter()
+
+```python
+def python_interpreter(code: str, data: Any = None) -> str
+```
+
+**功能**: 在受控沙箱环境中执行Python代码进行数据分析
+
+**参数**:
+- `code`: 要执行的Python代码字符串
+- `data`: 上一步工具返回的数据，代码中可通过变量访问
+
+**返回值**: 代码执行的输出结果或错误信息
+
+**支持的库和函数**:
+- pandas (别名 pd), numpy (别名 np), json
+- 基础函数: len, max, min, sum, range等
+- 数学函数: abs, round等
+- 数据类型: str, int, float, list, dict等
+
+**数据注入机制**:
+- DataFrame数据 → `df` 变量
+- 字典列表 → 自动转换为 `df` + 保留 `data`
+- 包含'res'字段的字典 → 从'res'创建 `df`
+- 其他数据类型 → `data` 变量
+
+**使用规则**:
+1. **必须**将最终结果赋值给 `result` 变量
+2. 可使用 `print()` 输出中间结果
+3. 支持复杂数据分析、统计计算、筛选等
+
+**使用示例**:
+```python
+from src.tools.code_interpreter import python_interpreter
+
+# 数据统计分析
+code = """
+avg_price = df['close'].mean()
+max_volume = df['volume'].max()
+result = f"平均价格: {avg_price:.2f}, 最大成交量: {max_volume}"
+"""
+
+result = python_interpreter(code, price_data)
+print(result)
+```
+
+### 6. news_crawler.py - 新闻爬虫和情感分析
 
 提供股票新闻获取和情感分析功能。
 
@@ -361,9 +430,203 @@ sentiment = get_news_sentiment(news, num_of_news=5)
 print(f"新闻情感得分: {sentiment}")
 ```
 
-## 🔧 使用建议
+## 🏗️ 系统集成架构
 
-### Agent 调用示例
+### 多数据源集成
+
+```
+中国A股数据源:
+├── akshare (主要) → api.py → agents
+├── Sina Finance → news_crawler.py → sentiment analysis
+└── 雪球/东财 → 备用数据源
+
+国际市场数据源:
+├── Algogene API → algogene_client.py → global markets
+├── yfinance → 备用国际数据
+└── Interactive Brokers → 专业交易数据
+
+AI服务集成:
+├── Gemini API (主要) → openrouter_config.py → LLM reasoning
+├── OpenAI Compatible APIs → 备用LLM服务
+└── LangChain → AI application framework
+```
+
+### 依赖关系图
+
+```
+外部服务依赖:
+├── akshare → (api.py, news_crawler.py, data_analyzer.py)
+├── Gemini/OpenAI → (openrouter_config.py) → (news_crawler.py)
+├── Algogene → (algogene_client.py)
+└── pandas/numpy → (所有数据处理模块)
+
+内部模块依赖:
+openrouter_config.py (无依赖)
+├── news_crawler.py (依赖LLM接口)
+└── code_interpreter.py (可选LLM增强)
+
+api.py (无内部依赖)
+└── data_analyzer.py (依赖price history)
+
+algogene_client.py (独立模块)
+code_interpreter.py (独立执行器)
+```
+
+### 错误处理与容错机制
+
+**网络请求容错**:
+- 指数退避重试机制
+- 多数据源切换
+- 连接超时处理
+- 请求频率限制
+
+**数据处理容错**:
+- 空数据默认值处理
+- 数据格式验证
+- pandas DataFrame安全转换
+- JSON序列化异常处理
+
+**API调用容错**:
+- LLM服务降级
+- 缓存机制减少重复调用
+- 配置文件缺失处理
+- 环境变量验证
+
+## 🔧 使用指南
+
+### 工具集成使用模式
+
+#### 1. 数据驱动分析流程
+
+```python
+# 完整股票分析流程
+def comprehensive_stock_analysis(symbol: str):
+    from src.tools.api import get_financial_metrics, get_market_data, get_price_history
+    from src.tools.news_crawler import get_stock_news, get_news_sentiment
+    from src.tools.code_interpreter import python_interpreter
+    
+    # 步骤1: 获取基础数据
+    financial_data = get_financial_metrics(symbol)
+    market_data = get_market_data(symbol)
+    price_data = get_price_history(symbol)
+    
+    # 步骤2: 获取新闻和情感
+    news = get_stock_news(symbol, max_news=15)
+    sentiment = get_news_sentiment(news, num_of_news=10)
+    
+    # 步骤3: 动态代码分析
+    analysis_code = """
+    # 计算技术指标
+    latest_price = df['close'].iloc[-1]
+    ma20 = df['close'].rolling(20).mean().iloc[-1]
+    volatility = df['close'].pct_change().std() * np.sqrt(252)
+    
+    # 趋势分析
+    price_trend = "上涨" if latest_price > ma20 else "下跌"
+    risk_level = "高" if volatility > 0.3 else "中" if volatility > 0.2 else "低"
+    
+    result = {
+        "current_price": latest_price,
+        "ma20": ma20,
+        "trend": price_trend,
+        "volatility": volatility,
+        "risk_level": risk_level
+    }
+    """
+    
+    technical_analysis = python_interpreter(analysis_code, price_data)
+    
+    return {
+        "financial_metrics": financial_data,
+        "market_data": market_data,
+        "technical_analysis": technical_analysis,
+        "news_sentiment": sentiment,
+        "raw_news": news[:5]  # 只返回前5条新闻
+    }
+```
+
+#### 2. AI增强分析模式
+
+```python
+# AI驱动的动态分析
+def ai_enhanced_analysis(symbol: str, custom_query: str):
+    from src.tools.openrouter_config import get_chat_completion
+    from src.tools.api import get_price_history
+    from src.tools.code_interpreter import python_interpreter
+    
+    # 获取数据
+    price_data = get_price_history(symbol)
+    
+    # AI生成分析代码
+    ai_prompt = f"""
+    基于用户查询: {custom_query}
+    请生成Python代码来分析股票{symbol}的数据。
+    数据存在df变量中，包含价格、成交量等信息。
+    代码必须将结果赋值给result变量。
+    """
+    
+    generated_code = get_chat_completion([
+        {"role": "user", "content": ai_prompt}
+    ])
+    
+    # 执行AI生成的代码
+    analysis_result = python_interpreter(generated_code, price_data)
+    
+    return {
+        "query": custom_query,
+        "generated_code": generated_code,
+        "analysis_result": analysis_result
+    }
+```
+
+#### 3. 多市场数据对比
+
+```python
+# 对比分析A股与国际市场
+def cross_market_analysis(a_stock: str, us_stock: str):
+    from src.tools.api import get_price_history as get_a_stock_data
+    from src.tools.algogene_client import get_algogene_price_history
+    from src.tools.code_interpreter import python_interpreter
+    
+    # 获取A股数据
+    a_data = get_a_stock_data(a_stock)
+    
+    # 获取美股数据
+    us_data = get_algogene_price_history(
+        count=100,
+        instrument=us_stock,
+        interval="D",
+        timestamp="2024-01-01 00:00:00"
+    )
+    
+    # 对比分析代码
+    comparison_code = """
+    # 处理美股数据
+    us_df = pd.DataFrame(us_data['res']) if 'res' in us_data else pd.DataFrame()
+    
+    if not us_df.empty and not df.empty:
+        # 计算相关性和对比指标
+        a_returns = df['close'].pct_change().dropna()
+        us_returns = us_df['c'].pct_change().dropna()
+        
+        # 对齐数据长度
+        min_length = min(len(a_returns), len(us_returns))
+        correlation = a_returns.tail(min_length).corr(us_returns.tail(min_length))
+        
+        result = {
+            "correlation": correlation,
+            "a_stock_volatility": a_returns.std(),
+            "us_stock_volatility": us_returns.std(),
+            "comparison": "高相关" if abs(correlation) > 0.7 else "低相关"
+        }
+    else:
+        result = {"error": "数据获取失败"}
+    """
+    
+    comparison_result = python_interpreter(comparison_code, a_data)
+    
+    return comparison_result
+```
 
 ```python
 # 为某只股票获取完整的分析数据
@@ -391,44 +654,365 @@ def get_complete_stock_analysis(symbol: str):
     }
 ```
 
-### 缓存机制
+### 缓存与性能优化
 
-- **新闻数据**: 自动缓存当日获取的新闻，避免重复请求
-- **情感分析**: 缓存分析结果，相同新闻组合不重复分析
-- **文件位置**: `src/data/` 目录下
+#### 智能缓存策略
 
-### 错误处理
+**文件缓存**:
+- 新闻数据: `src/data/stock_news/{symbol}_news.json` (日级缓存)
+- 情感分析: `src/data/sentiment_cache.json` (内容哈希缓存)
+- 宏观分析: 按agent模块分别缓存
 
-所有函数都包含完善的错误处理机制：
-- 网络请求失败时的重试逻辑
-- 数据解析错误时的默认值返回
-- 详细的日志记录便于调试
+**缓存失效机制**:
+- 新闻数据: 每日自动更新
+- 情感分析: 基于新闻内容组合的唯一标识
+- 价格数据: 实时获取，不缓存
+- 财务数据: 可考虑季度缓存
 
-### 环境变量配置
+**性能优化建议**:
+```python
+# 批量数据获取
+def batch_analysis(symbols: list):
+    results = {}
+    for symbol in symbols:
+        try:
+            # 利用缓存机制，重复调用会使用缓存
+            results[symbol] = get_stock_news(symbol, max_news=5)
+        except Exception as e:
+            results[symbol] = {"error": str(e)}
+    return results
+```
+
+### 错误处理与调试
+
+#### 分层错误处理
+
+**Level 1 - 网络层错误**:
+```python
+# 重试机制示例 (openrouter_config.py)
+@backoff.on_exception(
+    backoff.expo,
+    (Exception),
+    max_tries=5,
+    max_time=300
+)
+def api_call_with_retry(...):
+    # API调用逻辑
+```
+
+**Level 2 - 数据层错误**:
+```python
+# 安全数据处理 (api.py)
+def safe_float(value, default=0.0):
+    try:
+        return float(value) if value and str(value).strip() != '-' else default
+    except:
+        return default
+```
+
+**Level 3 - 应用层错误**:
+```python
+# 代码执行错误处理 (code_interpreter.py)
+try:
+    exec(code, sandbox_globals, sandbox_locals)
+except Exception as e:
+    return f"代码执行出错: {str(e)}\n详细错误:\n{traceback.format_exc()}"
+```
+
+#### 日志系统
+
+**日志级别配置**:
+- ERROR: API调用失败、数据解析错误
+- WARNING: 数据质量问题、缓存失效
+- INFO: 正常操作流程、数据获取成功
+- DEBUG: 详细的数据内容、请求参数
+
+**调试技巧**:
+```python
+# 启用详细日志
+import logging
+logging.getLogger('api').setLevel(logging.DEBUG)
+logging.getLogger('news_crawler').setLevel(logging.DEBUG)
+
+# 数据质量检查
+def validate_data_quality(df):
+    issues = []
+    if df.isna().sum().any():
+        issues.append(f"发现NaN值: {df.isna().sum().to_dict()}")
+    if len(df) < 100:
+        issues.append(f"数据量不足: {len(df)}条")
+    return issues
+```
+
+### 配置管理
+
+#### 环境变量配置
 
 在项目根目录的 `.env` 文件中配置：
 
 ```env
-# Algogene API
-ALGOGENE_API_KEY=your_api_key
+# === AI/LLM服务配置 ===
+# 主要LLM服务 (Gemini)
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-flash
+
+# 备用LLM服务 (OpenAI Compatible)
+OPENAI_COMPATIBLE_API_KEY=your_openai_key
+OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+OPENAI_COMPATIBLE_MODEL=gpt-3.5-turbo
+
+# === 金融数据服务 ===
+# 专业金融数据 (Algogene)
+ALGOGENE_API_KEY=your_algogene_key
 ALGOGENE_USER_ID=your_user_id
 
-# LLM API (用于情感分析)
-GEMINI_API_KEY=your_gemini_key
-OPENAI_API_KEY=your_openai_key
+# === 可选配置 ===
+# 日志级别
+LOG_LEVEL=INFO
+
+# 缓存设置
+CACHE_ENABLED=true
+CACHE_EXPIRE_HOURS=24
 ```
 
-## 📝 注意事项
+#### 配置验证
 
-1. **数据源依赖**: 主要依赖 akshare 库获取A股数据
-2. **网络环境**: 部分API可能需要特定网络环境
-3. **频率限制**: 注意各API的调用频率限制
-4. **数据质量**: 获取数据后建议进行数据质量检查
-5. **时区处理**: 时间数据均使用北京时间
+```python
+# 配置检查脚本
+def validate_configuration():
+    import os
+    required_configs = {
+        'GEMINI_API_KEY': '主要LLM服务',
+        'ALGOGENE_API_KEY': 'Algogene金融数据',
+        'ALGOGENE_USER_ID': 'Algogene用户ID'
+    }
+    
+    missing = []
+    for config, description in required_configs.items():
+        if not os.getenv(config):
+            missing.append(f"{config} ({description})")
+    
+    if missing:
+        print("❌ 缺少必要配置:")
+        for item in missing:
+            print(f"   - {item}")
+        return False
+    
+    print("✅ 配置验证通过")
+    return True
+```
 
-## 🔄 更新维护
+#### 动态配置切换
 
-- 定期检查数据源API的变化
-- 更新技术指标计算逻辑
-- 优化缓存机制和错误处理
-- 扩展新的数据源和分析功能 
+```python
+# 根据环境自动选择服务
+def get_optimal_llm_client():
+    if os.getenv('GEMINI_API_KEY'):
+        return get_chat_completion(messages, client_type="gemini")
+    elif os.getenv('OPENAI_COMPATIBLE_API_KEY'):
+        return get_chat_completion(messages, client_type="openai_compatible")
+    else:
+        raise ValueError("未配置任何LLM服务")
+```
+
+## ⚠️ 重要注意事项
+
+### 数据源与依赖风险
+
+**高风险依赖**:
+- `akshare`: A股数据核心来源，API变更可能影响核心功能
+- `Gemini API`: 情感分析主要服务，配额限制可能影响分析
+
+**中风险依赖**:
+- `雪球/东财接口`: 备用数据源，稳定性一般
+- `Sina Finance`: 新闻数据源，可能有反爬虫机制
+
+**低风险依赖**:
+- `pandas/numpy`: 成熟的数据处理库
+- `requests`: HTTP请求库，稳定可靠
+
+### 使用限制与建议
+
+**API调用频率**:
+- akshare: 建议间隔1-2秒
+- Gemini API: 注意RPM限制
+- Algogene: 按套餐限制调用
+
+**网络环境要求**:
+- Gemini API: 可能需要海外网络环境
+- 部分数据源: 建议国内网络环境
+- 代理设置: 支持HTTP/HTTPS代理
+
+**数据质量保证**:
+```python
+# 数据验证示例
+def validate_price_data(df):
+    checks = {
+        "数据完整性": len(df) > 0,
+        "价格合理性": df['close'].between(0.01, 10000).all(),
+        "成交量合理性": df['volume'].ge(0).all(),
+        "日期连续性": df['date'].is_monotonic_increasing
+    }
+    
+    failed_checks = [k for k, v in checks.items() if not v]
+    if failed_checks:
+        print(f"⚠️ 数据质量问题: {', '.join(failed_checks)}")
+    
+    return len(failed_checks) == 0
+```
+
+**时区处理**:
+- A股数据: 北京时间 (UTC+8)
+- 国际数据: GMT+0 (需要转换)
+- 时间戳格式: 统一使用 "YYYY-MM-DD HH:MM:SS"
+
+### 安全注意事项
+
+**代码执行安全** (`code_interpreter.py`):
+- 沙箱环境限制了可用函数
+- 禁止文件操作和网络访问
+- 禁止导入未授权的模块
+- 建议生产环境使用Docker隔离
+
+**API密钥安全**:
+- 不要将密钥硬编码在代码中
+- 使用环境变量或密钥管理服务
+- 定期轮换API密钥
+- 监控API使用情况
+
+## 🔄 维护与扩展
+
+### 定期维护任务
+
+**月度检查**:
+- [ ] akshare库版本更新和兼容性测试
+- [ ] API接口稳定性测试
+- [ ] 缓存文件清理和优化
+- [ ] 错误日志分析和处理
+
+**季度更新**:
+- [ ] 技术指标计算逻辑优化
+- [ ] 新数据源评估和集成
+- [ ] 性能基准测试
+- [ ] 安全漏洞扫描
+
+**年度升级**:
+- [ ] 依赖库大版本升级
+- [ ] 架构重构和优化
+- [ ] 新AI模型集成测试
+- [ ] 完整的功能回归测试
+
+### 扩展开发指南
+
+#### 添加新数据源
+
+```python
+# 1. 创建新的客户端文件
+# src/tools/new_data_source.py
+
+class NewDataClient:
+    def __init__(self):
+        self.api_key = os.getenv('NEW_API_KEY')
+    
+    def get_data(self, symbol: str):
+        # 实现数据获取逻辑
+        pass
+
+# 2. 在api.py中集成备用数据源
+def get_financial_metrics_enhanced(symbol: str):
+    try:
+        return get_financial_metrics(symbol)  # 主要数据源
+    except Exception:
+        return new_data_client.get_data(symbol)  # 备用数据源
+```
+
+#### 添加新AI服务
+
+```python
+# 1. 在openrouter_config.py中添加新客户端
+class NewLLMClient:
+    def get_completion(self, messages):
+        # 实现新LLM服务调用
+        pass
+
+# 2. 更新客户端工厂
+def create_llm_client(client_type):
+    if client_type == "new_llm":
+        return NewLLMClient()
+    # ... 其他客户端
+```
+
+#### 添加新分析工具
+
+```python
+# 1. 创建新工具文件
+# src/tools/advanced_analyzer.py
+
+def deep_learning_analysis(data):
+    """使用深度学习进行高级分析"""
+    # 实现分析逻辑
+    pass
+
+# 2. 在super_node.py中注册新工具
+AVAILABLE_TOOLS.update({
+    "deep_learning_analysis": {
+        "function": deep_learning_analysis,
+        "description": "深度学习股票分析",
+        "parameters": ["data: 股票数据"]
+    }
+})
+```
+
+### 测试覆盖完善
+
+**缺失的测试模块**:
+```python
+# test_api.py - API数据获取测试
+def test_financial_metrics():
+    result = get_financial_metrics("600519")
+    assert isinstance(result, list)
+    assert len(result) > 0
+
+# test_algogene.py - Algogene API测试  
+def test_price_history():
+    result = get_algogene_price_history(5, "AAPL", "D", "2024-01-01 00:00:00")
+    assert "res" in result
+
+# test_code_interpreter.py - 代码执行测试
+def test_pandas_operations():
+    code = "result = df['close'].mean()"
+    test_data = pd.DataFrame({'close': [100, 110, 120]})
+    result = python_interpreter(code, test_data)
+    assert "110" in result
+```
+
+### 性能监控
+
+```python
+# 性能监控装饰器
+import time
+from functools import wraps
+
+def performance_monitor(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start_time
+        
+        # 记录到监控系统
+        logger.info(f"{func.__name__} 执行时间: {duration:.2f}秒")
+        
+        return result
+    return wrapper
+
+# 使用示例
+@performance_monitor
+def get_price_history(symbol, start_date, end_date):
+    # 原有实现
+    pass
+```
+
+---
+
+💡 **开发建议**: 保持工具模块的独立性和可测试性，新增功能时优先考虑向后兼容性和错误处理机制。 
