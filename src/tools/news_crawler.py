@@ -226,11 +226,23 @@ def get_stock_news(symbol: str, market_type: str = "cn", max_news: int = 10) -> 
     Returns:
         list: 新闻列表，字段统一为 title, link, publisher, time, text
     """
-    if symbol.isalpha():
-        news_list = get_us_stock_news(symbol, max_news)
+    """
+    按 symbol 自动分流：A股走 get_cn_stock_news，美股走 get_us_stock_news，虚拟币只用 yfinance。
+    字段结构完全一致。
+    """
+    from src.tools.api import CRYPTO_SYMBOLS
+    symbol_upper = symbol.upper().replace("-", "")
+    # 虚拟币分流直接调用美股分流逻辑，字段结构100%一致
+    if symbol_upper in CRYPTO_SYMBOLS:
+        # 虚拟币 symbol 需转为 yfinance 格式（如 BTC -> BTC-USD）
+        yf_symbol = symbol + "-USD" if not symbol.endswith("-USD") else symbol
+        return get_us_stock_news(yf_symbol, max_news)
+    # A股分流（symbol为纯数字）
+    elif symbol.isdigit():
+        return get_cn_stock_news(symbol, max_news)
+    # 美股分流（symbol为纯字母或带-USD）
     else:
-        news_list = get_cn_stock_news(symbol, max_news)
-    return news_list
+        return get_us_stock_news(symbol, max_news)
 
 
 def get_news_sentiment(news_list: list, num_of_news: int = 5) -> float:
@@ -354,19 +366,29 @@ def get_news_sentiment(news_list: list, num_of_news: int = 5) -> float:
 
 # 文件末尾添加 main 测试代码，确保 get_stock_news 已定义
 if __name__ == "__main__":
-    # 测试 A股和美股新闻抓取，确保字段一致
-
+    # 测试分流和字段一致性
     test_cases = [
-        {"symbol": "600519", "desc": "A股-贵州茅台"},
-        {"symbol": "AAPL", "desc": "美股-苹果"}
+        {"symbol": "600519", "desc": "A股-贵州茅台", "expect": "A股"},
+        {"symbol": "AAPL", "desc": "美股-苹果", "expect": "美股"},
+        {"symbol": "BTC", "desc": "虚拟币-BTC", "expect": "虚拟币"},
+        {"symbol": "ETH", "desc": "虚拟币-ETH", "expect": "虚拟币"},
+        {"symbol": "BNB", "desc": "虚拟币-BNB", "expect": "虚拟币"}
     ]
     for case in test_cases:
         print(f"\n{'='*20} {case['desc']} ({case['symbol']}) {'='*20}")
         news = get_stock_news(case["symbol"], max_news=3)
         if news:
+            print(f"分流类型: {case['expect']}, 返回条数: {len(news)}")
             for i, item in enumerate(news, 1):
+                # 字段一致性检查
+                keys = set(item.keys())
+                required = {"title", "content", "publish_time", "source", "url", "keyword"}
+                if not required.issubset(keys):
+                    print(f"❌ 字段不一致: {keys}")
+                else:
+                    print(f"✅ 字段一致: {keys}")
                 print(f"--- 新闻 {i} ---")
-                for k in ["title", "link", "publisher", "time", "text"]:
-                    print(f"{k}: {item.get(k, '') if k != 'text' else item.get(k, '')[:100]+'...'}")
+                for k in ["title", "content", "publish_time", "source", "url", "keyword"]:
+                    print(f"{k}: {item.get(k, '')[:100]+'...' if k == 'content' else item.get(k, '')}")
         else:
             print("未获取到新闻。")

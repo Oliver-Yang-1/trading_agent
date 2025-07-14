@@ -1,3 +1,5 @@
+# 主流虚拟币 symbol 映射表（支持20种）
+
 from typing import Dict, Any, List
 import pandas as pd
 import akshare as ak
@@ -14,18 +16,23 @@ import yfinance as yf
 
 # 设置日志记录
 logger = setup_logger('api')
-
+CRYPTO_SYMBOLS = {
+    "BTC": "BTCUSD", "ETH": "ETHUSD", "BNB": "BNBUSD", "SOL": "SOLUSD", "XRP": "XRPUSD", "ADA": "ADAUSD",
+    "DOGE": "DOGEUSD", "DOT": "DOTUSD", "AVAX": "AVAXUSD", "MATIC": "MATICUSD", "LTC": "LTCUSD", "TRX": "TRXUSD",
+    "LINK": "LINKUSD", "ATOM": "ATOMUSD", "FIL": "FILUSD", "XMR": "XMRUSD", "UNI": "UNIUSD", "APT": "APTUSD",
+    "OP": "OPUSD", "ARB": "ARBUSD"
+}
 
 def get_financial_metrics(symbol: str) -> Dict[str, Any]:
     """获取财务指标数据"""
     logger.info(f"Getting financial indicators for {symbol}...")
     try:
-        # 判断是否为美股（us市场）
-        if symbol.isalpha():
-            logger.info(f"Fetching US financial metrics for {symbol} using yfinance...")
-            ticker = yf.Ticker(symbol)
+        symbol_upper = symbol.upper().replace("-", "")
+        # 主流币种自动分流
+        if symbol_upper in CRYPTO_SYMBOLS:
+            logger.info(f"Fetching crypto financial metrics for {symbol} using yfinance...")
+            ticker = yf.Ticker(symbol + "-USD" if not symbol.endswith("-USD") else symbol)
             info = ticker.info
-            # 主要财务指标
             metrics = {
                 "market_cap": info.get("marketCap"),
                 "shares_outstanding": info.get("sharesOutstanding"),
@@ -40,12 +47,38 @@ def get_financial_metrics(symbol: str) -> Dict[str, Any]:
                 "operating_margin": info.get("operatingMargins"),
                 "revenue_growth": info.get("revenueGrowth"),
                 "earnings_growth": info.get("earningsGrowth"),
-                "book_value_growth": None,  # yfinance无直接字段
+                "book_value_growth": None,
                 "current_ratio": info.get("currentRatio"),
                 "debt_to_equity": info.get("debtToEquity"),
-                "free_cash_flow_per_share": None  # yfinance无直接字段
+                "free_cash_flow_per_share": None
             }
-            logger.info(f"US financial metrics: {metrics}")
+            logger.info(f"Crypto financial metrics: {metrics}")
+            return [metrics]
+        # 美股分流（原有逻辑）
+        if symbol.isalpha() or symbol.upper() in ["BTC-USD", "ETH-USD"]:
+            logger.info(f"Fetching US/crypto financial metrics for {symbol} using yfinance...")
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            metrics = {
+                "market_cap": info.get("marketCap"),
+                "shares_outstanding": info.get("sharesOutstanding"),
+                "pe_ratio": info.get("trailingPE"),
+                "price_to_book": info.get("priceToBook"),
+                "price_to_sales": info.get("priceToSalesTrailing12Months"),
+                "earnings_per_share": info.get("trailingEps"),
+                "revenue": info.get("totalRevenue"),
+                "net_income": info.get("netIncomeToCommon"),
+                "return_on_equity": info.get("returnOnEquity"),
+                "net_margin": info.get("netMargins"),
+                "operating_margin": info.get("operatingMargins"),
+                "revenue_growth": info.get("revenueGrowth"),
+                "earnings_growth": info.get("earningsGrowth"),
+                "book_value_growth": None,
+                "current_ratio": info.get("currentRatio"),
+                "debt_to_equity": info.get("debtToEquity"),
+                "free_cash_flow_per_share": None
+            }
+            logger.info(f"US/crypto financial metrics: {metrics}")
             return [metrics]
         # A股逻辑（雪球/东财/新浪）
         logger.info("Fetching A股 financial metrics...")
@@ -162,17 +195,38 @@ def get_financial_statements(symbol: str) -> Dict[str, Any]:
     """获取财务报表数据"""
     logger.info(f"Getting financial statements for {symbol}...")
     try:
-        # 判断是否为美股（us市场）
-        if symbol.isalpha():
-            logger.info(f"Fetching US financial statements for {symbol} using yfinance...")
+        symbol_upper = symbol.upper().replace("-", "")
+        # 主流币种自动分流
+        if symbol_upper in CRYPTO_SYMBOLS:
+            logger.info(f"Fetching crypto financial statements for {symbol}: no statements available.")
+            empty_item = {
+                "net_income": None,
+                "operating_revenue": None,
+                "operating_profit": None,
+                "working_capital": None,
+                "depreciation_and_amortization": None,
+                "capital_expenditure": None,
+                "free_cash_flow": None
+            }
+            return [empty_item, empty_item]
+        # 美股分流（原有逻辑）
+        if symbol.isalpha() or symbol.upper() in ["BTC-USD", "ETH-USD"]:
+            logger.info(f"Fetching US/crypto financial statements for {symbol} using yfinance...")
+            if symbol.upper() in ["BTC-USD", "ETH-USD"]:
+                empty_item = {
+                    "net_income": None,
+                    "operating_revenue": None,
+                    "operating_profit": None,
+                    "working_capital": None,
+                    "depreciation_and_amortization": None,
+                    "capital_expenditure": None,
+                    "free_cash_flow": None
+                }
+                return [empty_item, empty_item]
             ticker = yf.Ticker(symbol)
-            # 财报（income statement）
             financials = ticker.financials
-            # 资产负债表（balance sheet）
             balance_sheet = ticker.balance_sheet
-            # 现金流量表（cashflow）
             cashflow = ticker.cashflow
-            # 取最新一期和上一期
             periods = financials.columns.tolist()
             line_items = []
             for i in range(min(2, len(periods))):
@@ -290,10 +344,29 @@ def get_financial_statements(symbol: str) -> Dict[str, Any]:
 
 def get_market_data(symbol: str) -> Dict[str, Any]:
     try:
-        # 判断是否为美股（us市场）
-        if symbol.isalpha():
+        symbol_upper = symbol.upper().replace("-", "")
+        # 主流币种自动分流
+        if symbol_upper in CRYPTO_SYMBOLS:
             import yfinance as yf
-            logger.info(f"Fetching US market data for {symbol} using yfinance...")
+            logger.info(f"Fetching crypto market data for {symbol} using yfinance...")
+            ticker = yf.Ticker(symbol + "-USD" if not symbol.endswith("-USD") else symbol)
+            info = ticker.info
+            market_cap = info.get("marketCap", 0)
+            volume = info.get("volume", info.get("regularMarketVolume", 0))
+            average_volume = info.get("averageVolume", 0)
+            fifty_two_week_high = info.get("fiftyTwoWeekHigh", 0)
+            fifty_two_week_low = info.get("fiftyTwoWeekLow", 0)
+            return {
+                "market_cap": market_cap,
+                "volume": volume,
+                "average_volume": average_volume,
+                "fifty_two_week_high": fifty_two_week_high,
+                "fifty_two_week_low": fifty_two_week_low
+            }
+        # 美股分流（原有逻辑）
+        if symbol.isalpha() or symbol.upper() in ["BTC-USD", "ETH-USD"]:
+            import yfinance as yf
+            logger.info(f"Fetching US/crypto market data for {symbol} using yfinance...")
             ticker = yf.Ticker(symbol)
             info = ticker.info
             market_cap = info.get("marketCap", 0)
@@ -409,10 +482,106 @@ def get_price_history(symbol: str, start_date: str = None, end_date: str = None,
         - kurtosis: 峰度
     """
     try:
-        if symbol.isalpha():
-            # 美股分流到 AlgogeneClient
+        symbol_upper = symbol.upper().replace("-", "")
+        if symbol_upper in CRYPTO_SYMBOLS:
+            # Algogene 虚拟币分支
             client = AlgogeneClient()
-            # 自动计算 count，确保覆盖时间区间
+            algogene_symbol = CRYPTO_SYMBOLS[symbol_upper]
+            if not end_date:
+                end_date = datetime.now().strftime("%Y-%m-%d")
+            if not start_date:
+                start_date = (datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=365)).strftime("%Y-%m-%d")
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+            count = (end_dt - start_dt).days + 1
+            interval = "D"
+            timestamp = end_date + " 00:00:00"
+            result = client.get_price_history(count=count, instrument=algogene_symbol, interval=interval, timestamp=timestamp)
+            prices = result.get("res", [])
+            if prices:
+                df = pd.DataFrame(prices)
+                df = df.rename(columns={
+                    "t": "date",
+                    "o": "open",
+                    "h": "high",
+                    "l": "low",
+                    "c": "close",
+                    "v": "volume"
+                })
+                df["date"] = pd.to_datetime(df["date"])
+                df = df[["date", "open", "high", "low", "close", "volume"]]
+                df = df.sort_values("date")
+                df = df[(df["date"] >= pd.to_datetime(start_date)) & (df["date"] <= pd.to_datetime(end_date))]
+                df["amount"] = df["close"] * df["volume"]
+                df["amplitude"] = (df["high"] - df["low"]) / df["close"] * 100
+                df["pct_change"] = df["close"].pct_change() * 100
+                df["change_amount"] = df["close"].diff()
+                df["turnover"] = None
+                df["momentum_1m"] = df["close"].pct_change(periods=20)
+                df["momentum_3m"] = df["close"].pct_change(periods=60)
+                df["momentum_6m"] = df["close"].pct_change(periods=120)
+                df["volume_ma20"] = df["volume"].rolling(window=20).mean()
+                df["volume_momentum"] = df["volume"] / df["volume_ma20"]
+                returns = df["close"].pct_change()
+                df["historical_volatility"] = returns.rolling(window=20).std() * np.sqrt(252)
+                volatility_120d = returns.rolling(window=120).std() * np.sqrt(252)
+                vol_min = volatility_120d.rolling(window=120).min()
+                vol_max = volatility_120d.rolling(window=120).max()
+                vol_range = vol_max - vol_min
+                df["volatility_regime"] = np.where(
+                    vol_range > 0,
+                    (df["historical_volatility"] - vol_min) / vol_range,
+                    0
+                )
+                vol_mean = df["historical_volatility"].rolling(window=120).mean()
+                vol_std = df["historical_volatility"].rolling(window=120).std()
+                df["volatility_z_score"] = (df["historical_volatility"] - vol_mean) / vol_std
+                tr = pd.DataFrame()
+                tr["h-l"] = df["high"] - df["low"]
+                tr["h-pc"] = abs(df["high"] - df["close"].shift(1))
+                tr["l-pc"] = abs(df["low"] - df["close"].shift(1))
+                tr["tr"] = tr[["h-l", "h-pc", "l-pc"]].max(axis=1)
+                df["atr"] = tr["tr"].rolling(window=14).mean()
+                df["atr_ratio"] = df["atr"] / df["close"]
+                def calculate_hurst(series):
+                    try:
+                        series = series.dropna()
+                        if len(series) < 30:
+                            return np.nan
+                        log_returns = np.log(series / series.shift(1)).dropna()
+                        if len(log_returns) < 30:
+                            return np.nan
+                        lags = range(2, min(11, len(log_returns) // 4))
+                        tau = []
+                        for lag in lags:
+                            std = log_returns.rolling(window=lag).std().dropna()
+                            if len(std) > 0:
+                                tau.append(np.mean(std))
+                        if len(tau) < 3:
+                            return np.nan
+                        lags_log = np.log(list(lags))
+                        tau_log = np.log(tau)
+                        reg = np.polyfit(lags_log, tau_log, 1)
+                        hurst = reg[0] / 2.0
+                        if np.isnan(hurst) or np.isinf(hurst):
+                            return np.nan
+                        return hurst
+                    except Exception as e:
+                        return np.nan
+                log_returns = np.log(df["close"] / df["close"].shift(1))
+                df["hurst_exponent"] = log_returns.rolling(window=120, min_periods=60).apply(calculate_hurst)
+                df["skewness"] = returns.rolling(window=20).skew()
+                df["kurtosis"] = returns.rolling(window=20).kurt()
+                df = df.sort_values("date")
+                df = df.reset_index(drop=True)
+                logger.info(f"Successfully fetched crypto price history data ({len(df)} records)")
+                return df
+            else:
+                logger.warning(f"No crypto price history data found for {symbol}")
+                return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume", "amount", "amplitude", "pct_change", "change_amount", "turnover"])
+        elif symbol.isalpha():
+            # 美股分流（原有逻辑完全保留）
+            client = AlgogeneClient()
             if not end_date:
                 end_date = datetime.now().strftime("%Y-%m-%d")
             if not start_date:
@@ -424,10 +593,8 @@ def get_price_history(symbol: str, start_date: str = None, end_date: str = None,
             timestamp = end_date + " 00:00:00"
             result = client.get_price_history(count=count, instrument=symbol, interval=interval, timestamp=timestamp)
             prices = result.get("res", [])
-            # 转为 DataFrame，标准化字段
             if prices:
                 df = pd.DataFrame(prices)
-                # 字段映射
                 df = df.rename(columns={
                     "t": "date",
                     "o": "open",
@@ -436,23 +603,14 @@ def get_price_history(symbol: str, start_date: str = None, end_date: str = None,
                     "c": "close",
                     "v": "volume"
                 })
-                # 日期格式
                 df["date"] = pd.to_datetime(df["date"])
-                # 只保留核心字段
                 df = df[["date", "open", "high", "low", "close", "volume"]]
-                # 按日期升序排列
                 df = df.sort_values("date")
-                # 过滤时间区间
                 df = df[(df["date"] >= pd.to_datetime(start_date)) & (df["date"] <= pd.to_datetime(end_date))]
-                # 计算 amount（成交额）
                 df["amount"] = df["close"] * df["volume"]
-                # 计算 amplitude（振幅）
                 df["amplitude"] = (df["high"] - df["low"]) / df["close"] * 100
-                # 计算 pct_change（涨跌幅）
                 df["pct_change"] = df["close"].pct_change() * 100
-                # 计算 change_amount（涨跌额）
                 df["change_amount"] = df["close"].diff()
-                # 计算 turnover（换手率），用 yfinance 获取 sharesOutstanding
                 try:
                     ticker_yf = yf.Ticker(symbol)
                     shares_outstanding = ticker_yf.info.get("sharesOutstanding")
@@ -463,7 +621,6 @@ def get_price_history(symbol: str, start_date: str = None, end_date: str = None,
                 except Exception as e:
                     logger.warning(f"Failed to get sharesOutstanding for {symbol}: {e}")
                     df["turnover"] = None
-                # 其余技术指标同A股
                 df["momentum_1m"] = df["close"].pct_change(periods=20)
                 df["momentum_3m"] = df["close"].pct_change(periods=60)
                 df["momentum_6m"] = df["close"].pct_change(periods=120)
@@ -779,16 +936,28 @@ def get_price_data(
 if __name__ == "__main__":
     # 测试 get_financial_metrics 和 get_financial_statements
 
-    res = get_market_data("600519")
-    res2 = get_market_data("TSLA")
-    print("--- 测试 get_financial_metrics ---")
+    # A股测试
+    res_a = get_market_data("600519")
+    print("A股市场数据:", res_a)
     a_metrics = get_financial_metrics("600519")
     print("A股财务指标:", a_metrics)
-    us_metrics = get_financial_metrics("AAPL")
-    print("美股财务指标:", us_metrics)
-
-    print("\n--- 测试 get_financial_statements ---")
     a_statements = get_financial_statements("600519")
     print("A股财务报表:", a_statements)
+
+    # 美股测试
+    res_us = get_market_data("AAPL")
+    print("美股市场数据:", res_us)
+    us_metrics = get_financial_metrics("AAPL")
+    print("美股财务指标:", us_metrics)
     us_statements = get_financial_statements("AAPL")
     print("美股财务报表:", us_statements)
+
+    # 主流币种测试
+    for crypto in ["BTC", "ETH", "BNB"]:
+        print(f"\n--- 测试 {crypto} ---")
+        crypto_market = get_market_data(crypto)
+        print(f"{crypto} 市场数据:", crypto_market)
+        crypto_metrics = get_financial_metrics(crypto)
+        print(f"{crypto} 财务指标:", crypto_metrics)
+        crypto_statements = get_financial_statements(crypto)
+        print(f"{crypto} 财务报表:", crypto_statements)
