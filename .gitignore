@@ -80,3 +80,5 @@ src/data/macro_analysis_cache.json
 
 test/
 src/data/macro_summary.json
+data/
+data/temp_messages_log.txt

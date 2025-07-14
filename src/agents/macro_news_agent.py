@@ -40,12 +40,12 @@ logger = setup_logger('macro_news_agent')
 @agent_endpoint("macro_news_agent", "Fetch full CSI 300 news and conduct macro analysis to provide a market-level macro environment assessment for investment decisions")
 def macro_news_agent(state: AgentState) -> Dict[str, Any]:
     """
-    Fetch full CSI 300 news, call LLM for macro analysis, and save the result.
-    This Agent runs independently, does not depend on specific upstream data, and injects results into AgentState.
+    Fetch full CSI 300/IXIC news, call LLM for macro analysis, and save the result.
     """
     agent_name = "macro_news_agent"
     show_workflow_status(f"{agent_name}: --- Executing Macro News Agent ---")
-    symbol = "000300"  # CSI 300 Index
+    data = state["data"]
+    symbol = data.get("ticker", "000300")
     news_list_for_llm: List[Dict[str, str]] = []
     parsed_summary: Dict[str, Any] = {}
     summary_json_str: str = ""
@@ -66,117 +66,109 @@ def macro_news_agent(state: AgentState) -> Dict[str, Any]:
         "detailed_analysis_report": "Macro analysis could not be performed."
     }
 
-    # Attempt to load from cache first
-    if os.path.exists(output_file_path):
-        try:
-            with open(output_file_path, 'r', encoding='utf-8') as f:
-                all_summaries = json.load(f)
-            if today_str in all_summaries and all_summaries[today_str]:
-                cached_data = all_summaries[today_str]
-                
-                # Check if new format exists (parsed_summary field)
-                if "parsed_summary" in cached_data and isinstance(cached_data["parsed_summary"], dict):
-                    parsed_summary = cached_data["parsed_summary"]
-                    summary_json_str = cached_data.get("summary_json_str", json.dumps(parsed_summary, ensure_ascii=False))
-                    from_cache = True
-                    show_workflow_status(f"{agent_name}: Loaded new format macro news summary for {today_str} from cache.")
-                
-                # Handle old format (summary_content field)
-                elif "summary_content" in cached_data:
-                    old_content = cached_data["summary_content"]
-                    if isinstance(old_content, str):
-                        try:
-                            # Try to parse as JSON
-                            parsed_summary = json.loads(old_content)
-                            summary_json_str = old_content
-                            if "detailed_analysis_report" not in parsed_summary:
-                                # Old plain text or different JSON format
-                                parsed_summary = {
-                                    **default_error_json,
-                                    "detailed_analysis_report": f"Legacy cached summary: {old_content}",
-                                    "overall_sentiment": "neutral",
-                                }
-                                summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
-                        except json.JSONDecodeError:
-                            # Old plain text format
-                            parsed_summary = {
-                                **default_error_json,
-                                "detailed_analysis_report": f"Legacy cached summary: {old_content}",
-                                "overall_sentiment": "neutral",
-                            }
-                            summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
-                    elif isinstance(old_content, dict):
-                         parsed_summary = old_content
-                         summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
-                    else:
-                        parsed_summary = {**default_error_json, "detailed_analysis_report": "Unknown legacy cache format."}
-                        summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
-                    from_cache = True
-                    show_workflow_status(f"{agent_name}: Loaded and converted old format macro news summary for {today_str} from cache.")
-                
-                if from_cache:
-                    retrieved_news_count = cached_data.get("retrieved_news_count", 0)
-                    show_agent_reasoning(f"Loaded macro summary for {today_str} from cache. News count: {retrieved_news_count}", agent_name)
-
-        except (json.JSONDecodeError, Exception) as e:
-            show_agent_reasoning(f"Error loading cache from {output_file_path}: {str(e)}. Will fetch fresh data.", agent_name)
-            all_summaries = {}
+    # # Attempt to load from cache first (已停用)
+    # if os.path.exists(output_file_path):
+    #     try:
+    #         with open(output_file_path, 'r', encoding='utf-8') as f:
+    #             all_summaries = json.load(f)
+    #         if today_str in all_summaries and all_summaries[today_str]:
+    #             cached_data = all_summaries[today_str]
+    #             # Check if new format exists (parsed_summary field)
+    #             if "parsed_summary" in cached_data and isinstance(cached_data["parsed_summary"], dict):
+    #                 parsed_summary = cached_data["parsed_summary"]
+    #                 summary_json_str = cached_data.get("summary_json_str", json.dumps(parsed_summary, ensure_ascii=False))
+    #                 from_cache = True
+    #                 show_workflow_status(f"{agent_name}: Loaded new format macro news summary for {today_str} from cache.")
+    #             # Handle old format (summary_content field)
+    #             elif "summary_content" in cached_data:
+    #                 old_content = cached_data["summary_content"]
+    #                 if isinstance(old_content, str):
+    #                     try:
+    #                         parsed_summary = json.loads(old_content)
+    #                         summary_json_str = old_content
+    #                         if "detailed_analysis_report" not in parsed_summary:
+    #                             parsed_summary = {
+    #                                 **default_error_json,
+    #                                 "detailed_analysis_report": f"Legacy cached summary: {old_content}",
+    #                                 "overall_sentiment": "neutral",
+    #                             }
+    #                             summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
+    #                     except json.JSONDecodeError:
+    #                         parsed_summary = {
+    #                             **default_error_json,
+    #                             "detailed_analysis_report": f"Legacy cached summary: {old_content}",
+    #                             "overall_sentiment": "neutral",
+    #                         }
+    #                         summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
+    #                 elif isinstance(old_content, dict):
+    #                      parsed_summary = old_content
+    #                      summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
+    #                 else:
+    #                     parsed_summary = {**default_error_json, "detailed_analysis_report": "Unknown legacy cache format."}
+    #                     summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
+    #                 from_cache = True
+    #                 show_workflow_status(f"{agent_name}: Loaded and converted old format macro news summary for {today_str} from cache.")
+    #             if from_cache:
+    #                 retrieved_news_count = cached_data.get("retrieved_news_count", 0)
+    #                 show_agent_reasoning(f"Loaded macro summary for {today_str} from cache. News count: {retrieved_news_count}", agent_name)
+    #     except (json.JSONDecodeError, Exception) as e:
+    #         show_agent_reasoning(f"Error loading cache from {output_file_path}: {str(e)}. Will fetch fresh data.", agent_name)
+    #         all_summaries = {}
 
     if not from_cache:
         show_workflow_status(f"{agent_name}: No summary found in cache for today, fetching real-time news.")
         try:
             show_workflow_status(f"{agent_name}: Fetching news for symbol {symbol}")
-            news_df = ak.stock_news_em(symbol=symbol)
-            
-            if news_df is None or news_df.empty:
+            # 优化分流逻辑：A股（数字）、美股（字母）、指数（^开头）
+            if symbol.isdigit():
+                # A股
+                from src.tools.news_crawler import get_cn_stock_news
+                news_list = get_cn_stock_news(symbol, max_news=30)
+            elif symbol.isalpha() or symbol.startswith("^") or symbol in ["IXIC", "GSPC"]:
+                # 美股或指数
+                from src.tools.news_crawler import get_us_stock_news
+                news_list = get_us_stock_news(symbol, max_news=30)
+            else:
+                # 其他情况默认A股
+                from src.tools.news_crawler import get_cn_stock_news
+                news_list = get_cn_stock_news(symbol, max_news=30)
+            if not news_list:
                 show_workflow_status(f"{agent_name}: No news data retrieved for {symbol}.")
                 show_agent_reasoning(f"No news found for {symbol}. Proceeding with no data summary.", agent_name)
                 parsed_summary = {**default_error_json, "detailed_analysis_report": "No macro news data available today."}
                 summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
             else:
-                retrieved_news_count = len(news_df)
+                retrieved_news_count = len(news_list)
                 show_workflow_status(f"{agent_name}: Successfully retrieved {retrieved_news_count} news items for {symbol}.")
                 show_agent_reasoning(f"Successfully fetched {retrieved_news_count} news items for {symbol}. Preparing for LLM analysis.", agent_name)
-                
-                for _, row in news_df.iterrows():
+                # 字段对齐，只取 title/content/publish_time
+                for item in news_list:
                     news_item = {
-                        "title": str(row.get("新闻标题", "")).strip(),
-                        "content": str(row.get("新闻内容", "")).strip(),
-                        "publish_time": str(row.get("发布时间", "")).strip()
+                        "title": item.get("title", ""),
+                        "content": item.get("content", ""),
+                        "publish_time": item.get("publish_time", "")
                     }
                     news_list_for_llm.append(news_item)
-
                 news_data_json_string_for_prompt = json.dumps(news_list_for_llm, ensure_ascii=False, indent=2)
                 prompt_filled = LLM_PROMPT_MACRO_ANALYSIS.format(news_data_json_string=news_data_json_string_for_prompt)
-
                 show_workflow_status(f"{agent_name}: Calling LLM for analysis.")
                 llm_response_str = get_chat_completion(messages=[{"role": "user", "content": prompt_filled}])
-
                 if llm_response_str:
                     llm_response_clean = llm_response_str.strip()
-                    
                     # Extract JSON from LLM response
                     json_match = re.search(r"\{.*\}", llm_response_clean, re.DOTALL)
                     if json_match:
                         extracted_json_str_raw = json_match.group(0)
-
                         try:
-                            # Try direct parsing first
                             parsed_summary = json.loads(extracted_json_str_raw)
                             summary_json_str = extracted_json_str_raw
                         except json.JSONDecodeError:
-                            # Apply fixes if direct parsing fails
                             extracted_json_str_stripped = extracted_json_str_raw.strip()
-                            
-                            # Remove outer quotes if present
                             if (extracted_json_str_stripped.startswith("'") and extracted_json_str_stripped.endswith("'")) or \
                                (extracted_json_str_stripped.startswith('"') and extracted_json_str_stripped.endswith('"')):
                                 extracted_json_str_stripped = extracted_json_str_stripped[1:-1]
-                            
-                            # Fix escaped single quotes
                             if "\\'" in extracted_json_str_stripped:
                                 extracted_json_str_stripped = extracted_json_str_stripped.replace("\\'", "'")
-                            
                             try:
                                 parsed_summary = json.loads(extracted_json_str_stripped)
                                 summary_json_str = extracted_json_str_stripped
@@ -192,10 +184,8 @@ def macro_news_agent(state: AgentState) -> Dict[str, Any]:
                     logger.error(f"{agent_name}: LLM analysis failed to return any response.")
                     parsed_summary = {**default_error_json, "detailed_analysis_report": "LLM analysis failed to return valid results."}
                     summary_json_str = json.dumps(parsed_summary, ensure_ascii=False)
-                
                 show_workflow_status(f"{agent_name}: LLM macro analysis result obtained.")
                 show_agent_reasoning(f"LLM analysis complete. JSON (first 100 chars): {summary_json_str[:100]}...", agent_name)
-
         except Exception as e:
             show_workflow_status(f"{agent_name}: Exception occurred during news fetching or LLM call: {e}")
             show_agent_reasoning(f"Exception during execution: {str(e)}", agent_name)

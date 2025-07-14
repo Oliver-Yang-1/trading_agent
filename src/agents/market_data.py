@@ -111,3 +111,16 @@ def market_data_agent(state: AgentState):
         },
         "metadata": state["metadata"],
     }
+
+if __name__ == "__main__":
+    # 测试A股行情
+    symbol_cn = "600519"  # 贵州茅台
+    print("A股行情数据:")
+    df_cn = get_price_history(symbol_cn, market_type="cn")
+    print(df_cn.tail())
+
+    # 测试美股行情
+    symbol_us = "AAPL"  # 苹果
+    print("美股行情数据:")
+    df_us = get_price_history(symbol_us, market_type="us")
+    print(df_us.tail())
