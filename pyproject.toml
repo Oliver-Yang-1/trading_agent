@@ -31,6 +31,15 @@ httpx = {extras = ["socks"], version = "^0.28.1"}
 newspaper3k = "*"
 curl_cffi = "^0.11.4"
 lxml-html-clean = "^0.4.2"
+# superagent dependencies
+langchain-community = ">=0.3.19"
+langchain-experimental = ">=0.3.4"
+readabilipy = ">=0.3.0"
+socksio = ">=1.0.0"
+markdownify = ">=1.1.0"
+browser-use = ">=0.1.0"
+sse-starlette = ">=1.6.5"
+langchain-deepseek = ">=0.1.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
