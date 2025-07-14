@@ -1,3 +1,4 @@
+
 import os
 import sys
 import json
@@ -8,102 +9,183 @@ from bs4 import BeautifulSoup
 from src.tools.openrouter_config import get_chat_completion, logger as api_logger
 import time
 import pandas as pd
+import traceback
 
 
-def get_stock_news(symbol: str, max_news: int = 10) -> list:
-    """获取并处理个股新闻
 
-    Args:
-        symbol (str): 股票代码，如 "300059"
-        max_news (int, optional): 获取的新闻条数，默认为10条。最大支持100条。
-
-    Returns:
-        list: 新闻列表，每条新闻包含标题、内容、发布时间等信息
+# --- 美股新闻抓取逻辑（集成自 stock_news_alt.py） ---
+import yfinance as yf
+from newspaper import Article
+import logging
+def get_us_stock_news(symbol: str, max_news: int = 10) -> list:
     """
+    获取美股新闻，支持可选 SOCKS5 代理。
+    Args:
+        symbol (str): 美股代码
+        max_news (int): 获取的新闻条数
+        use_proxy (bool): 是否启用代理
+    Returns:
+        list: 新闻列表
+    """
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.info(f"正在为美股代码获取新闻: {symbol}")
+    stock = yf.Ticker(symbol)
+    news_list = []
+    seen_links = set()
 
-    # 设置pandas显示选项，确保显示完整内容
+    def _extract_article_text(url):
+        if not url:
+            return ''
+        try:
+            article = Article(url, request_timeout=10, verify_ssl=False)
+            article.download()
+            article.parse()
+            return article.text
+        except Exception as e:
+            logging.warning(f"无法从 {url} 提取文本。原因: {e}")
+            return ''
+
+    def _normalize_and_add_news(raw_item, news_list, seen_links, source_type):
+        # 字段对齐A股格式
+        title, url, source, publish_time, content, keyword = '', '', '', '', '', ''
+        if source_type == 'stock_news':
+            content_raw = raw_item.get('content', {})
+            title = str(content_raw.get('title', '')).strip()
+            url = str(content_raw.get('canonicalUrl', {}).get('url', '')).strip()
+            source = str(content_raw.get('provider', {}).get('displayName', '')).strip()
+            pub_date_str = str(content_raw.get('pubDate', '')).strip()
+            # 转为标准时间字符串
+            if pub_date_str:
+                try:
+                    dt = datetime.fromisoformat(pub_date_str.replace('Z', '+00:00'))
+                    publish_time = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    publish_time = pub_date_str
+            else:
+                publish_time = ''
+            content = str(content_raw.get('summary', '') or title).strip()
+        elif source_type == 'search_api':
+            title = str(raw_item.get('title', '')).strip()
+            url = str(raw_item.get('link', '')).strip()
+            source = str(raw_item.get('publisher', '')).strip()
+            timestamp = raw_item.get('providerPublishTime', 0)
+            if timestamp:
+                try:
+                    dt = datetime.utcfromtimestamp(timestamp)
+                    publish_time = dt.strftime('%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    publish_time = str(timestamp)
+            else:
+                publish_time = ''
+            content = str(raw_item.get('summary', '') or title).strip()
+        # 补齐正文
+        if not content or len(content) < 10:
+            content = _extract_article_text(url)
+        # keyword可用symbol/company_name
+        keyword = symbol
+        if url and url not in seen_links and title and source:
+            seen_links.add(url)
+            news_item = {
+                "title": title,
+                "content": content,
+                "publish_time": publish_time,
+                "source": source,
+                "url": url,
+                "keyword": keyword
+            }
+            news_list.append(news_item)
+
+    # 来源1: stock.news 属性
+    try:
+        direct_news = stock.news
+        if direct_news:
+            for item in direct_news:
+                _normalize_and_add_news(item, news_list, seen_links, 'stock_news')
+    except Exception as e:
+        logging.warning(f"无法为 {symbol} 从 stock.news 获取新闻。原因: {e}")
+
+    # 来源2: 关键词搜索 API
+    keywords = []
+    try:
+        index_keywords = {
+            'IXIC': ['Nasdaq Composite', 'Nasdaq Index', 'US stock market'],
+            '^IXIC': ['Nasdaq Composite', 'Nasdaq Index', 'US stock market'],
+            'GSPC': ['S&P 500', 'US stock market'],
+            '^GSPC': ['S&P 500', 'US stock market'],
+        }
+        if symbol.upper() in index_keywords:
+            keywords = index_keywords[symbol.upper()]
+            keywords.append(symbol)
+        else:
+            info = stock.info
+            company_name = info.get('longName') or info.get('shortName')
+            if company_name:
+                keywords.append(company_name)
+            else:
+                keywords.append(symbol)
+        for kw in keywords:
+            try:
+                url = f"https://query2.finance.yahoo.com/v1/finance/search?q={kw}"
+                headers = {'User-Agent': 'Mozilla/5.0'}
+                resp = requests.get(url, headers=headers, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                search_news = data.get('news', [])
+                for item in search_news:
+                    _normalize_and_add_news(item, news_list, seen_links, 'search_api')
+            except Exception as e:
+                logging.error(f"搜索关键词 '{kw}' 时发生错误: {e}")
+    except Exception as e:
+        logging.error(f"为 {symbol} 生成关键词或获取股票信息失败。原因: {e}")
+    return news_list[:max_news]
+
+# --- A股新闻抓取逻辑（原有实现，略） ---
+def get_cn_stock_news(symbol: str, max_news: int = 10) -> list:
+    """
+    获取A股新闻，返回统一格式。
+    Args:
+        symbol (str): A股代码
+        max_news (int): 获取的新闻条数
+    Returns:
+        list: 新闻列表
+    """
     pd.set_option('display.max_columns', None)
     pd.set_option('display.max_rows', None)
     pd.set_option('display.max_colwidth', None)
     pd.set_option('display.width', None)
-
-    # 限制最大新闻条数
     max_news = min(max_news, 100)
-
-    # 获取当前日期
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    # 构建新闻文件路径
-    # project_root = os.path.dirname(os.path.dirname(
-    #     os.path.dirname(os.path.abspath(__file__))))
-    news_dir = os.path.join("src", "data", "stock_news")
-    print(f"新闻保存目录: {news_dir}")
-
-    # 确保目录存在
+    # cache_file = "src/data/stock_news_cache.json"
+    # os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    # cache = {}
+    # # 读取缓存
+    # if os.path.exists(cache_file):
+    #     try:
+    #         with open(cache_file, 'r', encoding='utf-8') as f:
+    #             cache = json.load(f)
+    #     except Exception:
+    #         cache = {}
+    # cache_key = f"{symbol}_{max_news}"
+    # # 判断缓存是否有效（24小时内）
+    # if cache_key in cache:
+    #     cached = cache[cache_key]
+    #     cache_time = cached.get('cache_time', 0)
+    #     if time.time() - cache_time < 86400 and cached.get('news_list'):
+    #         return cached['news_list']
+    news_list = []
     try:
-        os.makedirs(news_dir, exist_ok=True)
-        print(f"成功创建或确认目录存在: {news_dir}")
-    except Exception as e:
-        print(f"创建目录失败: {e}")
-        return []
-
-    news_file = os.path.join(news_dir, f"{symbol}_news.json")
-    print(f"新闻文件路径: {news_file}")
-
-    # 检查是否需要更新新闻
-    need_update = True
-    if os.path.exists(news_file):
-        try:
-            with open(news_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                if data.get("date") == today:
-                    cached_news = data.get("news", [])
-                    if len(cached_news) >= max_news:
-                        print(f"使用缓存的新闻数据: {news_file}")
-                        return cached_news[:max_news]
-                    else:
-                        print(
-                            f"缓存的新闻数量({len(cached_news)})不足，需要获取更多新闻({max_news}条)")
-        except Exception as e:
-            print(f"读取缓存文件失败: {e}")
-
-    print(f'开始获取{symbol}的新闻数据...')
-
-    try:
-        # 获取新闻列表
+        print(ak.__version__)
         news_df = ak.stock_news_em(symbol=symbol)
         if news_df is None or len(news_df) == 0:
-            print(f"未获取到{symbol}的新闻数据")
             return []
-
-        print(f"成功获取到{len(news_df)}条新闻")
-
-        # 实际可获取的新闻数量
-        available_news_count = len(news_df)
-        if available_news_count < max_news:
-            print(f"警告：实际可获取的新闻数量({available_news_count})少于请求的数量({max_news})")
-            max_news = available_news_count
-
-        # 获取指定条数的新闻（考虑到可能有些新闻内容为空，多获取50%）
-        news_list = []
         for _, row in news_df.head(int(max_news * 1.5)).iterrows():
             try:
-                # 获取新闻内容
-                content = row["新闻内容"] if "新闻内容" in row and not pd.isna(
-                    row["新闻内容"]) else ""
+                content = row["新闻内容"] if "新闻内容" in row and not pd.isna(row["新闻内容"]) else ""
                 if not content:
                     content = row["新闻标题"]
-
-                # 只去除首尾空白字符
                 content = content.strip()
-                if len(content) < 10:  # 内容太短的跳过
+                if len(content) < 10:
                     continue
-
-                # 获取关键词
-                keyword = row["关键词"] if "关键词" in row and not pd.isna(
-                    row["关键词"]) else ""
-
-                # 添加新闻
+                keyword = row["关键词"] if "关键词" in row and not pd.isna(row["关键词"]) else ""
                 news_item = {
                     "title": row["新闻标题"].strip(),
                     "content": content,
@@ -114,34 +196,41 @@ def get_stock_news(symbol: str, max_news: int = 10) -> list:
                 }
                 news_list.append(news_item)
                 print(f"成功添加新闻: {news_item['title']}")
-
-            except Exception as e:
-                print(f"处理单条新闻时出错: {e}")
+            except Exception:
                 continue
-
-        # 按发布时间排序
         news_list.sort(key=lambda x: x["publish_time"], reverse=True)
-
-        # 只保留指定条数的有效新闻
         news_list = news_list[:max_news]
-
-        # 保存到文件
-        try:
-            save_data = {
-                "date": today,
-                "news": news_list
-            }
-            with open(news_file, 'w', encoding='utf-8') as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=2)
-            print(f"成功保存{len(news_list)}条新闻到文件: {news_file}")
-        except Exception as e:
-            print(f"保存新闻数据到文件时出错: {e}")
-
+        # 写入缓存
+        # cache[cache_key] = {
+        #     'cache_time': time.time(),
+        #     'news_list': news_list
+        # }
+        # try:
+        #     with open(cache_file, 'w', encoding='utf-8') as f:
+        #         json.dump(cache, f, ensure_ascii=False, indent=2)
+        # except Exception:
+        #     pass
         return news_list
-
     except Exception as e:
-        print(f"获取新闻数据时出错: {e}")
+        print(f"ak.stock_news_em 异常: {e}")
+        traceback.print_exc()
         return []
+
+# --- 统一入口 ---
+def get_stock_news(symbol: str, market_type: str = "cn", max_news: int = 10) -> list:
+    """
+    获取并处理个股新闻，支持 A股、美股。
+    Args:
+        symbol (str): 股票代码
+        max_news (int): 获取的新闻条数
+    Returns:
+        list: 新闻列表，字段统一为 title, link, publisher, time, text
+    """
+    if symbol.isalpha():
+        news_list = get_us_stock_news(symbol, max_news)
+    else:
+        news_list = get_cn_stock_news(symbol, max_news)
+    return news_list
 
 
 def get_news_sentiment(news_list: list, num_of_news: int = 5) -> float:
@@ -163,8 +252,8 @@ def get_news_sentiment(news_list: list, num_of_news: int = 5) -> float:
 
     # 检查是否有缓存的情感分析结果
     # 检查是否有缓存的情感分析结果
-    cache_file = "src/data/sentiment_cache.json"
-    os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+    # cache_file = "src/data/sentiment_cache.json"
+    # os.makedirs(os.path.dirname(cache_file), exist_ok=True)
 
     # 生成新闻内容的唯一标识
     news_key = "|".join([
@@ -172,27 +261,27 @@ def get_news_sentiment(news_list: list, num_of_news: int = 5) -> float:
         for news in news_list[:num_of_news]
     ])
 
-    # 检查缓存
-    if os.path.exists(cache_file):
-        print("发现情感分析缓存文件")
-        try:
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                cache = json.load(f)
-                if news_key in cache:
-                    print("使用缓存的情感分析结果")
-                    return cache[news_key]
-                print("未找到匹配的情感分析缓存")
-        except Exception as e:
-            print(f"读取情感分析缓存出错: {e}")
-            cache = {}
-    else:
-        print("未找到情感分析缓存文件，将创建新文件")
-        cache = {}
+    # # 检查缓存
+    # if os.path.exists(cache_file):
+    #     print("发现情感分析缓存文件")
+    #     try:
+    #         with open(cache_file, 'r', encoding='utf-8') as f:
+    #             cache = json.load(f)
+    #             if news_key in cache:
+    #                 print("使用缓存的情感分析结果")
+    #                 return cache[news_key]
+    #             print("未找到匹配的情感分析缓存")
+    #     except Exception as e:
+    #         print(f"读取情感分析缓存出错: {e}")
+    #         cache = {}
+    # else:
+    #     print("未找到情感分析缓存文件，将创建新文件")
+    #     cache = {}
 
     # 准备系统消息
     system_message = {
         "role": "system",
-        "content": """你是一个专业的A股市场分析师，擅长解读新闻对股票走势的影响。你需要分析一组新闻的情感倾向，并给出一个介于-1到1之间的分数：
+        "content": """你是一个专业的美股或A股市场分析师，擅长解读新闻对股票走势的影响。你需要分析一组新闻的情感倾向，并给出一个介于-1到1之间的分数：
         - 1表示极其积极（例如：重大利好消息、超预期业绩、行业政策支持）
         - 0.5到0.9表示积极（例如：业绩增长、新项目落地、获得订单）
         - 0.1到0.4表示轻微积极（例如：小额合同签订、日常经营正常）
@@ -250,15 +339,34 @@ def get_news_sentiment(news_list: list, num_of_news: int = 5) -> float:
         sentiment_score = max(-1.0, min(1.0, sentiment_score))
 
         # 缓存结果
-        cache[news_key] = sentiment_score
-        try:
-            with open(cache_file, 'w', encoding='utf-8') as f:
-                json.dump(cache, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Error writing cache: {e}")
+        # cache[news_key] = sentiment_score
+        # try:
+        #     with open(cache_file, 'w', encoding='utf-8') as f:
+        #         json.dump(cache, f, ensure_ascii=False, indent=2)
+        # except Exception as e:
+        #     print(f"Error writing cache: {e}")
 
         return sentiment_score
 
     except Exception as e:
         print(f"Error analyzing news sentiment: {e}")
         return 0.0  # 出错时返回中性分数
+
+# 文件末尾添加 main 测试代码，确保 get_stock_news 已定义
+if __name__ == "__main__":
+    # 测试 A股和美股新闻抓取，确保字段一致
+
+    test_cases = [
+        {"symbol": "600519", "desc": "A股-贵州茅台"},
+        {"symbol": "AAPL", "desc": "美股-苹果"}
+    ]
+    for case in test_cases:
+        print(f"\n{'='*20} {case['desc']} ({case['symbol']}) {'='*20}")
+        news = get_stock_news(case["symbol"], max_news=3)
+        if news:
+            for i, item in enumerate(news, 1):
+                print(f"--- 新闻 {i} ---")
+                for k in ["title", "link", "publisher", "time", "text"]:
+                    print(f"{k}: {item.get(k, '') if k != 'text' else item.get(k, '')[:100]+'...'}")
+        else:
+            print("未获取到新闻。")
