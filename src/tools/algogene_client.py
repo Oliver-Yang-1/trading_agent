@@ -136,9 +136,9 @@ class AlgogeneClient:
         Returns:
             Dict[str, Any]: A dictionary containing:
                 - count (int): Number of results
-                - res (List[Dict]): List of real-time market data objects
+                - res (Dict[str, Dict]): Dictionary of symbol data keyed by symbol name
                 
-                Each market data object contains:
+                Each symbol data contains:
                     - timestamp (str): Time in UTC+0
                     - bidPrice (float): Bid price
                     - askPrice (float): Ask price
@@ -358,6 +358,237 @@ class AlgogeneClient:
             raise
 
     # =============================================================================
+    # Historical Data APIs
+    # =============================================================================
+    
+
+    def get_econs_calendar(self, start_date: Optional[str] = None, end_date: Optional[str] = None, country: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get historical economic calendar events.
+        
+        Args:
+            start_date (Optional[str]): Start date in format "YYYY-MM-DD"
+            end_date (Optional[str]): End date in format "YYYY-MM-DD"  
+            country (Optional[str]): Country code filter
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing:
+                - count (int): Number of events
+                - res (List[Dict]): List of economic calendar events
+                
+                Each event object contains:
+                    - impact (str): Impact level (e.g., "Low Impact Expected")
+                    - nevent (str): Event name
+                    - timestamp (str): Event timestamp in GMT+0
+                    - country (str): Country code (if available)
+        
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+            ValueError: If the response contains an error
+        """
+        try:
+            url = f"{self.base_url}/history_econs_calendar"
+            
+            querystring = {
+                "user": self.user_id,
+                "api_key": self.api_key
+            }
+            
+            if start_date:
+                querystring["start_date"] = start_date
+            if end_date:
+                querystring["end_date"] = end_date
+            if country:
+                querystring["country"] = country
+            
+            headers = {"Content-Type": ""}
+            
+            response = self.session.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"Successfully retrieved {data.get('count', 0)} economic calendar events")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {str(e)}")
+            raise ValueError("Invalid JSON response from API")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_econs_calendar: {str(e)}")
+            raise
+
+    def get_econs_statistics(self, series_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get historical economic statistics data.
+        
+        Args:
+            series_id (str): Economic series ID
+            start_date (Optional[str]): Start date in format "YYYY-MM-DD"
+            end_date (Optional[str]): End date in format "YYYY-MM-DD"
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing:
+                - count (int): Number of data points
+                - res (List[Dict]): List of economic data points
+                - series_id (str): The series ID requested
+                
+                Each data point contains:
+                    - date (str): Data date
+                    - value (float): Statistical value
+        
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+            ValueError: If the response contains an error
+        """
+        try:
+            url = f"{self.base_url}/history_econs_stat"
+            
+            querystring = {
+                "user": self.user_id,
+                "api_key": self.api_key,
+                "series_id": series_id
+            }
+            
+            if start_date:
+                querystring["start_date"] = start_date
+            if end_date:
+                querystring["end_date"] = end_date
+            
+            headers = {"Content-Type": ""}
+            
+            response = self.session.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"Successfully retrieved {data.get('count', 0)} economic statistics for series {series_id}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {str(e)}")
+            raise ValueError("Invalid JSON response from API")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_econs_statistics: {str(e)}")
+            raise
+
+    def get_historical_news(self, count: int = 10, timestamp_lt: Optional[str] = None, timestamp_gt: Optional[str] = None, 
+                           language: str = "en", category: Optional[str] = None, source: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get historical news data.
+        
+        Args:
+            count (int): Number of news items to return (max 100, default 10)
+            timestamp_lt (Optional[str]): Get news before this timestamp ("YYYY-MM-DD HH:MM:SS")
+            timestamp_gt (Optional[str]): Get news after this timestamp ("YYYY-MM-DD HH:MM:SS")
+            language (str): Language code (ISO 639-1, default "en")
+            category (Optional[str]): News categories, comma-separated
+            source (Optional[str]): News sources, comma-separated
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing:
+                - count (int): Number of news items
+                - res (List[Dict]): List of news objects
+                
+                Each news object contains news content and metadata
+        
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+            ValueError: If the response contains an error
+        """
+        try:
+            url = f"{self.base_url}/history_news"
+            
+            querystring = {
+                "user": self.user_id,
+                "api_key": self.api_key,
+                "count": min(count, 100),  # Enforce max limit
+                "language": language
+            }
+            
+            if timestamp_lt:
+                querystring["timestamp_lt"] = timestamp_lt
+            if timestamp_gt:
+                querystring["timestamp_gt"] = timestamp_gt
+            if category:
+                querystring["category"] = category
+            if source:
+                querystring["source"] = source
+            
+            headers = {"Content-Type": ""}
+            
+            response = self.session.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"Successfully retrieved {data.get('count', 0)} historical news items")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {str(e)}")
+            raise ValueError("Invalid JSON response from API")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_historical_news: {str(e)}")
+            raise
+
+
+    def query_market_price(self, instrument: str, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Query historical market price data (alternative to get_price_history).
+        
+        Args:
+            instrument (str): Financial instrument symbol
+            start_date (Optional[str]): Start date in format "YYYY-MM-DD"
+            end_date (Optional[str]): End date in format "YYYY-MM-DD"
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing market price data
+        
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+            ValueError: If the response contains an error
+        """
+        try:
+            url = f"{self.base_url}/query_marketprice"
+            
+            querystring = {
+                "user": self.user_id,
+                "api_key": self.api_key,
+                "instrument": instrument
+            }
+            
+            if start_date:
+                querystring["start_date"] = start_date
+            if end_date:
+                querystring["end_date"] = end_date
+            
+            headers = {"Content-Type": ""}
+            
+            response = self.session.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"Successfully retrieved market price data for {instrument}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {str(e)}")
+            raise ValueError("Invalid JSON response from API")
+        except Exception as e:
+            logger.error(f"Unexpected error in query_market_price: {str(e)}")
+            raise
+
+    # =============================================================================
     # Realtime Data APIs
     # =============================================================================
     
@@ -406,6 +637,178 @@ class AlgogeneClient:
             logger.error(f"Unexpected error in get_realtime_exchange_rate: {str(e)}")
             raise
 
+    def get_realtime_econs_stat(self) -> Dict[str, Any]:
+        """
+        Get the latest economic statistics data.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing economic statistics with fields:
+                - series_id (str): The series id of the economic statistics
+                - title (str): The description of the economic statistics  
+                - src (str): The original source of the economic statistics
+                - geo (str): The applicable city/country of the economic statistics
+                - tag (str): Category of the economic statistics
+                - freq (str): Release frequency of the economic statistics
+                - units (str): Units of the observation value
+                - seasonal_adj (str): Identifier for seasonal adjustment
+                - notes (str): Remarks
+                - popularity (float): Popularity of the economic statistics
+                - obs_date (str): Observation date of the economic statistics
+                - obs_val (float): Observation value of the economic statistics
+        
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+            ValueError: If the response contains an error
+        """
+        try:
+            url = f"{self.base_url}/realtime_econs_stat"
+            
+            querystring = {
+                "user": self.user_id,
+                "api_key": self.api_key
+            }
+            
+            headers = {"Content-Type": ""}
+            
+            response = self.session.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info("Successfully retrieved real-time economic statistics")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {str(e)}")
+            raise ValueError("Invalid JSON response from API")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_realtime_econs_stat: {str(e)}")
+            raise
+
+    def get_realtime_weather(self, city: str) -> Dict[str, Any]:
+        """
+        Get current weather information for any given city in the world.
+        
+        Args:
+            city (str): Any city name in the world (e.g., 'Beijing', 'New York City', 'London', etc.)
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing weather information with fields:
+                - timestamp (str): Latest recorded timestamp of the weather event (UTC+0)
+                - city (str): City name
+                - country (str): The country of the city
+                - coord_lat (float): Latitude of the city's geographic coordinate
+                - coord_lon (float): Longitude of the city's geographic coordinate
+                - sunrise (str): Sunrise time
+                - sunset (str): Estimated sunset time
+                - visibility (float): Visibility in miles (None for missing value)
+                - pressure (float): Atmospheric pressure in Dynes per square centimetre
+                - temperature_min (float): Minimum temperature in Fahrenheit (F)
+                - temperature_max (float): Maximum temperature in Fahrenheit (F)
+                - temperature (float): Current temperature in Fahrenheit (F)
+                - humidity (float): Humidity percentage (%)
+                - wind_speed (float): Wind speed in mile per hour (mph)
+                - wind_degree (float): Wind degree (0-360 degrees)
+                - weather (str): High level weather classification ('Clear', 'Clouds', 'Haze', etc.)
+                - weather_desc (str): Detailed weather description
+                - clouds (float): Cloud density (0-100)
+        
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+            ValueError: If the response contains an error
+        """
+        try:
+            url = f"{self.base_url}/realtime_weather"
+            
+            querystring = {
+                "user": self.user_id,
+                "api_key": self.api_key,
+                "city": city
+            }
+            
+            headers = {"Content-Type": ""}
+            
+            response = self.session.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"Successfully retrieved weather data for {city}")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {str(e)}")
+            raise ValueError("Invalid JSON response from API")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_realtime_weather: {str(e)}")
+            raise
+
+    def get_realtime_news(self, count: int = 10, language: str = "en", category: Optional[str] = None, source: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get real-time news data.
+        
+        Args:
+            count (int): Number of news items to return (max 100, default 10)
+            language (str): Language code (ISO 639-1, default "en")
+            category (Optional[str]): News categories, comma-separated
+            source (Optional[str]): News sources, comma-separated
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing:
+                - res (Dict): Real-time news object with fields:
+                    - authors (List): List of authors
+                    - category (str): News category
+                    - link (str): News article link
+                    - movies (List): Associated media files
+                    - published (str): Publication timestamp
+                    - source (str): News source
+                    - text (str): News article text
+                    - title (str): News article title
+                    - top_image (str): Featured image URL
+        
+        Raises:
+            requests.exceptions.RequestException: If the API request fails
+            ValueError: If the response contains an error
+        """
+        try:
+            url = f"{self.base_url}/realtime_news"
+            
+            querystring = {
+                "user": self.user_id,
+                "api_key": self.api_key,
+                "count": min(count, 100),  # Enforce max limit
+                "lang": language  # Note: API uses 'lang' parameter name
+            }
+            
+            if category:
+                querystring["category"] = category
+            if source:
+                querystring["source"] = source
+            
+            headers = {"Content-Type": ""}
+            
+            response = self.session.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"Successfully retrieved {data.get('count', 0)} real-time news items")
+            return data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request failed: {str(e)}")
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {str(e)}")
+            raise ValueError("Invalid JSON response from API")
+        except Exception as e:
+            logger.error(f"Unexpected error in get_realtime_news: {str(e)}")
+            raise
+
+
 # ===== 包装函数 - 供其他模块使用 =====
 
 def get_algogene_price_history(count: int, instrument: str, interval: str, timestamp: str) -> Dict[str, Any]:
@@ -446,6 +849,76 @@ def get_algogene_realtime_price(symbols: str, broker: Optional[str] = None) -> D
         logger.error(f"Algogene实时价格数据获取失败: {e}")
         return {"error": str(e)}
 
+def get_algogene_realtime_exchange_rate(cur1: str, cur2: str) -> Dict[str, Any]:
+    """
+    获取Algogene实时汇率数据的包装函数
+    
+    Args:
+        cur1 (str): 源货币代码
+        cur2 (str): 目标货币代码
+        
+    Returns:
+        Dict[str, Any]: 实时汇率数据
+    """
+    try:
+        client = AlgogeneClient()
+        return client.get_realtime_exchange_rate(cur1, cur2)
+    except Exception as e:
+        logger.error(f"Algogene实时汇率数据获取失败: {e}")
+        return {"error": str(e)}
+
+def get_algogene_realtime_news(count: int = 10, language: str = "en", category: Optional[str] = None, source: Optional[str] = None) -> Dict[str, Any]:
+    """
+    获取Algogene实时新闻数据的包装函数
+    
+    Args:
+        count (int): 新闻条数，默认10条
+        language (str): 语言代码，默认"en"
+        category (Optional[str]): 新闻分类，用逗号分隔
+        source (Optional[str]): 新闻来源，用逗号分隔
+        
+    Returns:
+        Dict[str, Any]: 实时新闻数据
+    """
+    try:
+        client = AlgogeneClient()
+        return client.get_realtime_news(count, language, category, source)
+    except Exception as e:
+        logger.error(f"Algogene实时新闻数据获取失败: {e}")
+        return {"error": str(e)}
+
+def get_algogene_realtime_econs_stat() -> Dict[str, Any]:
+    """
+    获取Algogene实时经济统计数据的包装函数
+    
+    Returns:
+        Dict[str, Any]: 实时经济统计数据
+    """
+    try:
+        client = AlgogeneClient()
+        return client.get_realtime_econs_stat()
+    except Exception as e:
+        logger.error(f"Algogene实时经济统计数据获取失败: {e}")
+        return {"error": str(e)}
+
+def get_algogene_realtime_weather(city: str) -> Dict[str, Any]:
+    """
+    获取Algogene实时天气数据的包装函数
+    
+    Args:
+        city (str): 城市名称
+        
+    Returns:
+        Dict[str, Any]: 实时天气数据
+    """
+    try:
+        client = AlgogeneClient()
+        return client.get_realtime_weather(city)
+    except Exception as e:
+        logger.error(f"Algogene实时天气数据获取失败: {e}")
+        return {"error": str(e)}
+
+
 def main():
     """
     Test function for AlgogeneClient.
@@ -472,6 +945,27 @@ def main():
         )
         print("Real-time Price Response:", json.dumps(realtime_price, indent=2))
         
+        # Test get_realtime_exchange_rate
+        print("\n=== Testing Real-time Exchange Rate ===")
+        exchange_rate = client.get_realtime_exchange_rate("USD", "EUR")
+        print("Real-time Exchange Rate Response:", json.dumps(exchange_rate, indent=2))
+        
+        # Test get_realtime_econs_stat
+        print("\n=== Testing Real-time Economic Statistics ===")
+        realtime_econs = client.get_realtime_econs_stat()
+        print("Real-time Economic Statistics Response:", json.dumps(realtime_econs, indent=2))
+        
+        # Test get_realtime_weather
+        print("\n=== Testing Real-time Weather ===")
+        realtime_weather = client.get_realtime_weather("Beijing")
+        print("Real-time Weather Response:", json.dumps(realtime_weather, indent=2))
+        
+        # Test get_realtime_news
+        print("\n=== Testing Real-time News ===")
+        realtime_news = client.get_realtime_news(count=5, language="en")
+        print("Real-time News Response:", json.dumps(realtime_news, indent=2))
+        
+        
         # Test wrapper functions
         print("\n=== Testing Wrapper Functions ===")
         wrapper_history = get_algogene_price_history(
@@ -483,7 +977,19 @@ def main():
         print("Wrapper History Response:", json.dumps(wrapper_history, indent=2))
         
         wrapper_realtime = get_algogene_realtime_price("EURUSD")
-        print("Wrapper Realtime Response:", json.dumps(wrapper_realtime, indent=2))
+        print("Wrapper Realtime Price Response:", json.dumps(wrapper_realtime, indent=2))
+        
+        wrapper_exchange = get_algogene_realtime_exchange_rate("EUR", "USD")
+        print("Wrapper Exchange Rate Response:", json.dumps(wrapper_exchange, indent=2))
+        
+        wrapper_news = get_algogene_realtime_news(count=3)
+        print("Wrapper News Response:", json.dumps(wrapper_news, indent=2))
+        
+        wrapper_econs = get_algogene_realtime_econs_stat()
+        print("Wrapper Economic Statistics Response:", json.dumps(wrapper_econs, indent=2))
+        
+        wrapper_weather = get_algogene_realtime_weather("New York City")
+        print("Wrapper Weather Response:", json.dumps(wrapper_weather, indent=2))
         
     except Exception as e:
         print(f"Error during testing: {str(e)}")
