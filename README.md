@@ -6,8 +6,14 @@
 
 ## Project Overview
 
-The "Trading Agent System" project is designed to develop a sophisticated, AI-driven platform for automated investment analysis and decision-making. In the contemporary financial landscape, the voluminous nature of market data, news, and influencing factors presents a significant challenge for human traders to efficiently process information and make timely, optimal decisions. This project addresses this challenge by creating a system of specialized AI agents that collaborate to analyze various facets of financial markets and individual stocks.
+This repository contains two complementary AI-powered systems for intelligent automation:
+
+### 1. **AI Trading Agent** (Root Project)
+The "Trading Agent System" is designed to develop a sophisticated, AI-driven platform for automated investment analysis and decision-making. In the contemporary financial landscape, the voluminous nature of market data, news, and influencing factors presents a significant challenge for human traders to efficiently process information and make timely, optimal decisions. This project addresses this challenge by creating a system of specialized AI agents that collaborate to analyze various facets of financial markets and individual stocks.
 The system aims to emulate the workflow of a human investment analysis team, wherein different experts (e.g., technical analysts, fundamental analysts) contribute their insights, which are subsequently debated and synthesized to formulate a coherent trading strategy. By leveraging technologies such as LangGraph for structured agent workflows and Large Language Models (LLMs) for complex data interpretation (e.g., news sentiment analysis), this project endeavors to provide a robust, data-driven, and potentially automated solution for trading. The ultimate objective is to assist in identifying investment opportunities, managing risk, and executing trades with enhanced precision and efficiency.
+
+### 2. **SuperAgent** (Sub-Project)
+SuperAgent is a LangGraph-based multi-agent workflow system for intelligent task automation. It provides a flexible framework for orchestrating AI agents to perform complex tasks including web crawling, content extraction, browser automation, and data analysis. The system features a FastAPI backend with Server-Sent Events (SSE) streaming for real-time workflow monitoring and supports configurable LLM integration for diverse automation scenarios.
 
 
 ## System Architecture
@@ -127,17 +133,23 @@ curl -sSL [https://install.python-poetry.org](https://install.python-poetry.org)
 
 ### 2. Install Project Dependencies
 
-Use Poetry to install the required project dependencies:
+#### For AI Trading Agent (Root Project):
 
 ```bash
 poetry lock --no-update
+poetry install
 ```
 
+#### For SuperAgent (Sub-Project):
+
 ```bash
+cd src/superagent
 poetry install
 ```
 
 ### 3. Configure Environment Variables
+
+#### For AI Trading Agent (Root Project):
 
 Environment variables are used to store sensitive information such as API keys.
 
@@ -196,13 +208,24 @@ $env:OPENAI_COMPATIBLE_BASE_URL='https://your-api-endpoint.com/v1'
 $env:OPENAI_COMPATIBLE_MODEL='your-model-name'
 ```
 
+#### For SuperAgent (Sub-Project):
+
+```bash
+cd src/superagent
+cp .env.example .env
+```
+
+Edit the `.env` file to configure your API keys. The SuperAgent supports multiple LLM providers including Gemini, OpenAI-compatible APIs, and Algogene integration.
+
 ## 🚀 Usage Guide
+
+### AI Trading Agent (Root Project)
 
 ⚠️ **Note**: The backtesting system is currently under testing.
 
 The system supports multiple running modes:
 
-### 1. Command Line Analysis Mode
+#### 1. Command Line Analysis Mode
 
 This is the main way to interact directly with the system for stock analysis.
 
@@ -243,7 +266,7 @@ The backtesting function supports the following parameters:
 - `initial-capital`: Initial capital (optional, default is `100,000`)  
 - `num-of-news`: Number of news used for sentiment analysis (optional, default is `5`, maximum is `100`)  
 
-#### Parameter Description
+##### Parameter Description
 - `--ticker`: Stock code (required)  
 - `--show-reasoning`: Show analysis reasoning process (optional, default is `false`)  
 - `--initial-capital`: Initial cash amount (optional, default is `100,000`)  
@@ -251,8 +274,7 @@ The backtesting function supports the following parameters:
 - `--start-date`: Start date, format `YYYY-MM-DD` (optional)  
 - `--end-date`: End date, format `YYYY-MM-DD` (optional) 
 
-
-### 2. Backend API Service Mode
+#### 2. Backend API Service Mode
 
 This mode starts a FastAPI backend service, allowing interaction with the system via API, suitable for users who want to develop custom frontend interfaces based on this backend.
 
@@ -281,12 +303,28 @@ After starting, you can access the interactive API interface (Swagger UI) by vis
 
 For detailed backend API documentation, please refer to: [View Detailed Backend API Documentation](./backend/README.md)
 
-### Parameter Description (Command Line Mode)
+### SuperAgent (Sub-Project)
 
-- `--ticker`: Stock code (required)
-- `--show-reasoning`: Show analysis reasoning process (optional, default is `false`)
-- `--initial-capital`: Initial cash amount (optional, default is `100,000`)
-- `--num-of-news`: Number of news used for sentiment analysis (optional, default is `5`)
+SuperAgent provides a flexible multi-agent workflow system for intelligent task automation.
+
+#### Running SuperAgent
+
+**Command Line Mode**
+
+```bash
+cd src/superagent
+poetry run python main.py
+```
+
+#### SuperAgent Features
+
+- **Multi-agent orchestration**: Coordinate multiple AI agents using LangGraph
+- **Web crawling and extraction**: Intelligent content extraction from web pages
+- **Browser automation**: Automated web browsing capabilities
+- **Data analysis**: Built-in tools for data processing and analysis
+- **Flexible LLM integration**: Support for multiple LLM providers
+
+For detailed SuperAgent documentation, please refer to: [SuperAgent README](./src/superagent/README.md)
 
 
 
