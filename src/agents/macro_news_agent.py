@@ -11,9 +11,9 @@ from langchain_core.messages import HumanMessage
 import re
 
 # LLM Prompt for analyzing full news data
-LLM_PROMPT_MACRO_ANALYSIS = """You are a senior macro analyst specializing in the A-share (China) market.
+LLM_PROMPT_MACRO_ANALYSIS = """You are a senior macro analyst specializing in the US and A-share (China) market.
 
-Based on the CSI 300 Index news data provided below, analyze the market and return ONLY a valid JSON object with these exact fields:
+Based on the IXIC Index or CSI 300 Index news data provided below, analyze the market and return ONLY a valid JSON object with these exact fields:
 
 - overall_sentiment: "bullish", "bearish", or "neutral"
 - sentiment_confidence: number between 0.0 and 1.0
@@ -29,7 +29,7 @@ IMPORTANT:
 - Ensure all text content is in English
 - For the detailed_analysis_report field, write as a single continuous text without line breaks
 
-CSI 300 News Data:
+IXIC or CSI 300 News Data:
 {news_data_json_string}
 
 JSON Response:"""
