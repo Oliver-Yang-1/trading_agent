@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from langgraph.graph import END
 
-from src.agents import research_agent, coder_agent, browser_agent
+from src.agents import research_agent, coder_agent, data_fetcher_agent
 from src.agents.llm import get_llm_by_type
 from src.config import TEAM_MEMBERS
 from src.config.agents import AGENT_LLM_MAP
@@ -61,25 +61,46 @@ def code_node(state: State) -> Command[Literal["supervisor"]]:
     )
 
 
-def browser_node(state: State) -> Command[Literal["supervisor"]]:
-    """Node for the browser agent that performs web browsing tasks."""
-    logger.info("Browser agent starting task")
-    result = browser_agent.invoke(state)
-    logger.info("Browser agent completed task")
-    logger.debug(f"Browser agent response: {result['messages'][-1].content}")
+def data_fetcher_node(state: State) -> Command[Literal["supervisor"]]:
+    """Node for the data fetcher agent that performs data fetching tasks."""
+    logger.info("Data fetcher agent starting task")
+    result = data_fetcher_agent.invoke(state)
+    logger.info("Data fetcher agent completed task")
+    logger.debug(f"Data fetcher agent response: {result['messages'][-1].content}")
     return Command(
         update={
             "messages": [
                 HumanMessage(
                     content=RESPONSE_FORMAT.format(
-                        "browser", result["messages"][-1].content
+                        "data_fetcher", result["messages"][-1].content
                     ),
-                    name="browser",
+                    name="data_fetcher",
                 )
             ]
         },
         goto="supervisor",
     )
+
+
+# def browser_node(state: State) -> Command[Literal["supervisor"]]:
+#     """Node for the browser agent that performs web browsing tasks."""
+#     logger.info("Browser agent starting task")
+#     result = browser_agent.invoke(state)
+#     logger.info("Browser agent completed task")
+#     logger.debug(f"Browser agent response: {result['messages'][-1].content}")
+#     return Command(
+#         update={
+#             "messages": [
+#                 HumanMessage(
+#                     content=RESPONSE_FORMAT.format(
+#                         "browser", result["messages"][-1].content
+#                     ),
+#                     name="browser",
+#                 )
+#             ]
+#         },
+#         goto="supervisor",
+#     )
 
 
 def supervisor_node(state: State) -> Command[Literal[*TEAM_MEMBERS, "__end__"]]:

@@ -6,7 +6,7 @@ from .nodes import (
     research_node,
     code_node,
     coordinator_node,
-    browser_node,
+    data_fetcher_node,
     reporter_node,
     planner_node,
 )
@@ -21,6 +21,7 @@ def build_graph():
     builder.add_node("supervisor", supervisor_node)
     builder.add_node("researcher", research_node)
     builder.add_node("coder", code_node)
-    builder.add_node("browser", browser_node)
+    builder.add_node("data_fetcher", data_fetcher_node)
+    # browser node removed
     builder.add_node("reporter", reporter_node)
     return builder.compile()
