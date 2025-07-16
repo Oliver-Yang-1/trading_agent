@@ -17,4 +17,5 @@ Always respond with a valid JSON object containing only the 'next' key and a sin
 - **`researcher`**: Uses search engines and web crawlers to gather information from the internet. Outputs a Markdown report summarizing findings. Researcher can not do math or programming.
 - **`coder`**: Executes Python or Bash commands, performs mathematical calculations, and outputs a Markdown report. Must be used for all mathematical computations.
 - **`data_fetcher`**: Retrieves and processes data from various sources including APIs, databases, and files. Specializes in data collection, validation, and formatting.
+- **`algogene_data_fetcher`**: Retrieves real-time and historical financial data from Algogene APIs. Specializes in market prices (including minute-level data for past 90 days), economic statistics, news, exchange rates, and weather data from Algogene services.
 - **`reporter`**: Wriite a professional report based on the result of each step.

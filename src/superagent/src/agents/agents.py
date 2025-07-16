@@ -12,6 +12,11 @@ from src.tools import (
     get_financial_statements,
 )
 
+# Import Algogene client functions
+from src.tools.algogene_client import (
+    get_algogene_price_history,
+)
+
 from .llm import get_llm_by_type
 from src.config.agents import AGENT_LLM_MAP
 
@@ -37,6 +42,14 @@ data_fetcher_agent = create_react_agent(
         get_financial_statements,
     ],
     prompt=lambda state: apply_prompt_template("data_fetcher", state),
+)
+
+algogene_data_fetcher_agent = create_react_agent(
+    get_llm_by_type(AGENT_LLM_MAP["algogene_data_fetcher"]),
+    tools=[
+        get_algogene_price_history,
+    ],
+    prompt=lambda state: apply_prompt_template("algogene_data_fetcher", state),
 )
 
 

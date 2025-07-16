@@ -15,6 +15,7 @@ As a Deep Researcher, you can breakdown the major subject into sub-topics and ex
 - **`researcher`**: Uses search engines and web crawlers to gather information from the internet. Outputs a Markdown report summarizing findings. Researcher can not do math or programming.
 - **`coder`**: Executes Python or Bash commands, performs mathematical calculations, and outputs a Markdown report. Must be used for all mathematical computations.
 - **`data_fetcher`**: Retrieves and processes data from various sources including APIs, databases, and files. Specializes in data collection, validation, and formatting.
+- **`algogene_data_fetcher`**: Retrieves real-time and historical financial data from Algogene APIs. Specializes in market prices, economic statistics, news, exchange rates, and weather data from Algogene services.
 - **`reporter`**: Write a professional report based on the result of each step.
 
 **Note**: Ensure that each step using `coder` completes a full task, as session continuity cannot be preserved.

@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from langgraph.graph import END
 
-from src.agents import research_agent, coder_agent, data_fetcher_agent
+from src.agents import research_agent, coder_agent, data_fetcher_agent, algogene_data_fetcher_agent
 from src.agents.llm import get_llm_by_type
 from src.config import TEAM_MEMBERS
 from src.config.agents import AGENT_LLM_MAP
@@ -43,7 +43,7 @@ def research_node(state: State) -> Command[Literal["supervisor"]]:
 def code_node(state: State) -> Command[Literal["supervisor"]]:
     """Node for the coder agent that executes Python code."""
     logger.info("Code agent starting task")
-    result = coder_agent.invoke(state)
+    result = coder_agent.invoke(state,{"recursion_limit":9999})
     logger.info("Code agent completed task")
     logger.debug(f"Code agent response: {result['messages'][-1].content}")
     return Command(
@@ -182,6 +182,27 @@ def coordinator_node(state: State) -> Command[Literal["planner", "__end__"]]:
 
     return Command(
         goto=goto,
+    )
+
+
+def algogene_data_fetcher_node(state: State) -> Command[Literal["supervisor"]]:
+    """Node for the algogene data fetcher agent that performs Algogene data fetching tasks."""
+    logger.info("Algogene data fetcher agent starting task")
+    result = algogene_data_fetcher_agent.invoke(state, {"recursion_limit": 9999})
+    logger.info("Algogene data fetcher agent completed task")
+    logger.debug(f"Algogene data fetcher agent response: {result['messages'][-1].content}")
+    return Command(
+        update={
+            "messages": [
+                HumanMessage(
+                    content=RESPONSE_FORMAT.format(
+                        "algogene_data_fetcher", result["messages"][-1].content
+                    ),
+                    name="algogene_data_fetcher",
+                )
+            ]
+        },
+        goto="supervisor",
     )
 
 
