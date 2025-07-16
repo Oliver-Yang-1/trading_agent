@@ -6,6 +6,10 @@ from src.tools import (
     crawl_tool,
     python_repl_tool,
     tavily_tool,
+    get_financial_metrics,
+    get_market_data,
+    get_price_history,
+    get_financial_statements,
 )
 
 from .llm import get_llm_by_type
@@ -26,7 +30,12 @@ coder_agent = create_react_agent(
 
 data_fetcher_agent = create_react_agent(
     get_llm_by_type(AGENT_LLM_MAP["data_fetcher"]),
-    tools=[],  # 暂时为空，根据需要添加数据获取相关的工具
+    tools=[
+        get_financial_metrics,
+        get_market_data,
+        get_price_history,
+        get_financial_statements,
+    ],
     prompt=lambda state: apply_prompt_template("data_fetcher", state),
 )
 

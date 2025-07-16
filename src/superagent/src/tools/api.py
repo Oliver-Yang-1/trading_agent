@@ -6,12 +6,12 @@ import akshare as ak
 from datetime import datetime, timedelta
 import json
 import numpy as np
-from src.utils.logging_config import setup_logger
+from ..utils.logging_config import setup_logger
 import time
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from src.tools.algogene_client import AlgogeneClient
+from .algogene_client import AlgogeneClient
 import yfinance as yf
 
 # 设置日志记录
@@ -24,7 +24,50 @@ CRYPTO_SYMBOLS = {
 }
 
 def get_financial_metrics(symbol: str) -> Dict[str, Any]:
-    """获取财务指标数据"""
+    """获取财务指标数据，包括盈利能力、偿债能力、营运能力等关键指标
+    
+    Args:
+        symbol: 股票/加密货币代码，支持多种类型：
+            - A股: 6位数字代码 (如: "600519" - 贵州茅台)
+            - 美股: 英文字母代码 (如: "AAPL" - 苹果公司)
+            - 加密货币: 主流币种简称 (如: "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", 
+                        "DOGE", "DOT", "AVAX", "MATIC", "LTC", "TRX", "LINK", 
+                        "ATOM", "FIL", "XMR", "UNI", "APT", "OP", "ARB")
+            - 加密货币USD对: 带USD后缀 (如: "BTC-USD", "ETH-USD")
+    
+    Returns:
+        List[Dict[str, Any]]: 包含财务指标的列表，每个元素包含：
+            盈利能力指标：
+            - return_on_equity: 净资产收益率 (ROE) (比例)
+            - net_margin: 销售净利率 (比例)
+            - operating_margin: 营业利润率 (比例)
+            - earnings_per_share: 每股收益 (EPS) (数值)
+            - pe_ratio: 市盈率 (PE) (数值)
+            
+            成长能力指标：
+            - revenue_growth: 主营业务收入增长率 (比例)
+            - earnings_growth: 净利润增长率 (比例)
+            - book_value_growth: 净资产增长率 (比例，A股专有)
+            
+            偿债能力指标：
+            - current_ratio: 流动比率 (数值)
+            - debt_to_equity: 资产负债率 (比例)
+            
+            估值指标：
+            - market_cap: 市值 (数值)
+            - price_to_book: 市净率 (PB) (数值)
+            - price_to_sales: 市销率 (PS) (数值)
+            
+            现金流指标：
+            - free_cash_flow_per_share: 每股经营性现金流 (数值，A股专有)
+        
+        注意：
+            - 比例数据已转换为小数形式 (如: 0.1039 表示 10.39%)
+            - 加密货币的传统财务指标可能为None
+            - A股数据来源：雪球/东财/新浪财经
+            - 美股/加密货币数据来源：yfinance
+            - 如果获取失败，返回空字典列表
+    """
     logger.info(f"Getting financial indicators for {symbol}...")
     try:
         symbol_upper = symbol.upper().replace("-", "")
@@ -192,7 +235,34 @@ def get_financial_metrics(symbol: str) -> Dict[str, Any]:
 
 
 def get_financial_statements(symbol: str) -> Dict[str, Any]:
-    """获取财务报表数据"""
+    """获取财务报表数据，包括利润表、资产负债表、现金流量表的关键指标
+    
+    Args:
+        symbol: 股票/加密货币代码，支持多种类型：
+            - A股: 6位数字代码 (如: "600519" - 贵州茅台)
+            - 美股: 英文字母代码 (如: "AAPL" - 苹果公司)
+            - 加密货币: 主流币种简称 (如: "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", 
+                        "DOGE", "DOT", "AVAX", "MATIC", "LTC", "TRX", "LINK", 
+                        "ATOM", "FIL", "XMR", "UNI", "APT", "OP", "ARB")
+            - 加密货币USD对: 带USD后缀 (如: "BTC-USD", "ETH-USD")
+    
+    Returns:
+        List[Dict[str, Any]]: 包含最近2期财务报表数据的列表，每个元素包含：
+            - net_income: 净利润 (数值)
+            - operating_revenue: 营业收入/总收入 (数值)
+            - operating_profit: 营业利润 (数值)
+            - working_capital: 营运资本 (流动资产-流动负债) (数值)
+            - depreciation_and_amortization: 折旧摊销 (数值)
+            - capital_expenditure: 资本支出 (数值)
+            - free_cash_flow: 自由现金流 (数值)
+        
+        注意：
+            - 返回列表包含[最新期, 上一期]的数据
+            - 加密货币通常没有传统财务报表，返回空值或None
+            - A股数据来源：新浪财经财务报表
+            - 美股数据来源：yfinance财务数据
+            - 如果获取失败，返回包含默认值(0)的列表
+    """
     logger.info(f"Getting financial statements for {symbol}...")
     try:
         symbol_upper = symbol.upper().replace("-", "")
@@ -343,6 +413,30 @@ def get_financial_statements(symbol: str) -> Dict[str, Any]:
 
 
 def get_market_data(symbol: str) -> Dict[str, Any]:
+    """获取市场数据，包括市值、交易量、52周高低点等信息
+    
+    Args:
+        symbol: 股票/加密货币代码，支持多种类型：
+            - A股: 6位数字代码 (如: "600519" - 贵州茅台)
+            - 美股: 英文字母代码 (如: "AAPL" - 苹果公司)
+            - 加密货币: 主流币种简称 (如: "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", 
+                        "DOGE", "DOT", "AVAX", "MATIC", "LTC", "TRX", "LINK", 
+                        "ATOM", "FIL", "XMR", "UNI", "APT", "OP", "ARB")
+            - 加密货币USD对: 带USD后缀 (如: "BTC-USD", "ETH-USD")
+    
+    Returns:
+        Dict[str, Any]: 包含以下字段的字典：
+            - market_cap: 市值 (数值)
+            - volume: 当日成交量 (数值)
+            - average_volume: 平均成交量 (数值，A股使用当日成交量)
+            - fifty_two_week_high: 52周最高价 (数值)
+            - fifty_two_week_low: 52周最低价 (数值)
+        
+        注意：
+            - 加密货币的传统财务指标可能为None或0
+            - 数据来源：A股(雪球/东财)，美股/加密货币(yfinance)
+            - 如果获取失败，返回空字典
+    """
     try:
         symbol_upper = symbol.upper().replace("-", "")
         # 主流币种自动分流

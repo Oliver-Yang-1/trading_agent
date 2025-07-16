@@ -64,7 +64,7 @@ def code_node(state: State) -> Command[Literal["supervisor"]]:
 def data_fetcher_node(state: State) -> Command[Literal["supervisor"]]:
     """Node for the data fetcher agent that performs data fetching tasks."""
     logger.info("Data fetcher agent starting task")
-    result = data_fetcher_agent.invoke(state)
+    result = data_fetcher_agent.invoke(state,{"recursion_limit":9999})
     logger.info("Data fetcher agent completed task")
     logger.debug(f"Data fetcher agent response: {result['messages'][-1].content}")
     return Command(

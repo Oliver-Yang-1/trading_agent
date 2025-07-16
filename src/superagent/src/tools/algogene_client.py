@@ -5,7 +5,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-from src.utils.logging_config import setup_logger
+from ..utils.logging_config import setup_logger
 import json
 
 logger = setup_logger('algogene_client')
@@ -56,7 +56,7 @@ class AlgogeneClient:
 
     def get_price_history(self, count: int, instrument: str, interval: str, timestamp: str) -> Dict[str, Any]:
         """
-        Get historical price data from Algogene API.
+        Get minute level historical price data(at most 90 days) from Algogene API.
         
         Args:
             count (int): Number of data points to retrieve
