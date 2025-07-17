@@ -13,4 +13,5 @@ AGENT_LLM_MAP: dict[str, LLMType] = {
     "reporter": "basic",  # 编写报告使用basic llm
     "data_fetcher": "basic",  # 数据获取使用basic llm
     "algogene_data_fetcher": "basic",  # Algogene数据获取使用basic llm
+    "algogene_archieve": "basic",  # Algogene归档使用basic llm
 }

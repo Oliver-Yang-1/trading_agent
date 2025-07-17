@@ -10,6 +10,8 @@ from src.tools import (
     get_market_data,
     get_price_history,
     get_financial_statements,
+    algogene_docs_reader_tool,
+    algogene_code_generator_tool,
 )
 
 # Import Algogene client functions
@@ -54,6 +56,12 @@ algogene_data_fetcher_agent = create_react_agent(
         search_instrument_with_prefix,
     ],
     prompt=lambda state: apply_prompt_template_compressed("algogene_data_fetcher", state),
+)
+
+algogene_archieve_agent = create_react_agent(
+    get_llm_by_type(AGENT_LLM_MAP["algogene_archieve"]),
+    tools=[algogene_docs_reader_tool, algogene_code_generator_tool],
+    prompt=lambda state: apply_prompt_template_compressed("algogene_archieve", state),
 )
 
 

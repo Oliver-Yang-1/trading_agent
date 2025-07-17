@@ -8,6 +8,7 @@ from .nodes import (
     coordinator_node,
     data_fetcher_node,
     algogene_data_fetcher_node,
+    algogene_archieve_node,
     reporter_node,
     planner_node,
 )
@@ -24,6 +25,7 @@ def build_graph():
     builder.add_node("coder", code_node)
     builder.add_node("data_fetcher", data_fetcher_node)
     builder.add_node("algogene_data_fetcher", algogene_data_fetcher_node)
+    builder.add_node("algogene_archieve", algogene_archieve_node)
     # browser node removed
     builder.add_node("reporter", reporter_node)
     return builder.compile()

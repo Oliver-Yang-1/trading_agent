@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 from langgraph.graph import END
 
-from src.agents import research_agent, coder_agent, data_fetcher_agent, algogene_data_fetcher_agent
+from src.agents import research_agent, coder_agent, data_fetcher_agent, algogene_data_fetcher_agent, algogene_archieve_agent
 from src.agents.llm import get_llm_by_type
 from src.config import TEAM_MEMBERS
 from src.config.agents import AGENT_LLM_MAP
@@ -199,6 +199,27 @@ def algogene_data_fetcher_node(state: State) -> Command[Literal["supervisor"]]:
                         "algogene_data_fetcher", result["messages"][-1].content
                     ),
                     name="algogene_data_fetcher",
+                )
+            ]
+        },
+        goto="supervisor",
+    )
+
+
+def algogene_archieve_node(state: State) -> Command[Literal["supervisor"]]:
+    """Node for the algogene archieve agent that performs data archiving tasks."""
+    logger.info("Algogene archieve agent starting task")
+    result = algogene_archieve_agent.invoke(state, {"recursion_limit": 9999})
+    logger.info("Algogene archieve agent completed task")
+    logger.debug(f"Algogene archieve agent response: {result['messages'][-1].content}")
+    return Command(
+        update={
+            "messages": [
+                HumanMessage(
+                    content=RESPONSE_FORMAT.format(
+                        "algogene_archieve", result["messages"][-1].content
+                    ),
+                    name="algogene_archieve",
                 )
             ]
         },
