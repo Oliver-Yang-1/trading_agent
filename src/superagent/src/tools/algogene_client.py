@@ -41,6 +41,10 @@ class AlgogeneClient:
             'Content-Type': 'application/json'
         })
         
+        # 加载instruments列表
+        self.instruments_file = os.path.join(os.path.dirname(__file__), 'data', 'instruments_list.json')
+        self._load_instruments()
+        
         # Configure proxy if provided or use system proxy
         proxy_url = proxy or os.getenv('ALGOGENE_PROXY')
         if proxy_url:
@@ -53,6 +57,33 @@ class AlgogeneClient:
             # Use system proxy settings if available
             self.session.trust_env = True
             logger.info("Using system proxy settings")
+
+    def _load_instruments(self):
+        """加载instruments列表"""
+        try:
+            if os.path.exists(self.instruments_file):
+                with open(self.instruments_file, 'r') as f:
+                    data = json.load(f)
+                    self.instruments = set(data.get('data', {}).get('res', []))
+                logger.info(f"成功加载 {len(self.instruments)} 个instruments")
+            else:
+                logger.warning(f"Instruments文件不存在: {self.instruments_file}")
+                self.instruments = set()
+        except Exception as e:
+            logger.error(f"加载instruments文件失败: {str(e)}")
+            self.instruments = set()
+
+    def is_valid_instrument(self, instrument: str) -> bool:
+        """
+        检查给定的instrument是否在支持的列表中
+        
+        Args:
+            instrument (str): 要检查的金融工具代码
+            
+        Returns:
+            bool: 如果instrument在支持列表中返回True，否则返回False
+        """
+        return instrument in self.instruments
 
     def get_price_history(self, count: int, instrument: str, interval: str, timestamp: str) -> Dict[str, Any]:
         """
@@ -918,6 +949,49 @@ def get_algogene_realtime_weather(city: str) -> Dict[str, Any]:
         logger.error(f"Algogene实时天气数据获取失败: {e}")
         return {"error": str(e)}
 
+def search_instrument_with_prefix(prefix: str) -> Dict[str, Any]:
+    """
+    Search for instruments that start with the given prefix
+    
+    Args:
+        prefix (str): The prefix to search for (e.g., "BTC" will find "BTCUSD", "BTCEUR", etc.)
+        
+    Returns:
+        Dict[str, Any]: A dictionary containing:
+            - matches (List[str]): List of matching instrument symbols
+            - count (int): Number of matches found
+            - prefix (str): The prefix that was searched for
+    """
+    try:
+        client = AlgogeneClient()
+        matches = [inst for inst in client.instruments if inst.startswith(prefix.upper())]
+        result = {
+            "matches": matches,
+            "count": len(matches),
+            "prefix": prefix.upper()
+        }
+        logger.info(f"Found {len(matches)} instruments matching prefix '{prefix}'")
+        return result
+    except Exception as e:
+        logger.error(f"Instrument prefix search failed: {e}")
+        return {"error": str(e)}
+
+def check_valid_instrument(instrument: str) -> bool:
+    """
+    检查金融工具是否在支持的列表中
+    
+    Args:
+        instrument (str): 要检查的金融工具代码
+        
+    Returns:
+        bool: 如果instrument在支持列表中返回True，否则返回False
+    """
+    try:
+        client = AlgogeneClient()
+        return client.is_valid_instrument(instrument)
+    except Exception as e:
+        logger.error(f"检查instrument有效性失败: {e}")
+        return False
 
 def main():
     """
