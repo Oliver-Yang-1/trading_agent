@@ -12,6 +12,7 @@ from src.config import TEAM_MEMBERS
 from src.config.agents import AGENT_LLM_MAP
 from src.prompts.template import apply_prompt_template
 from src.tools.search import tavily_tool
+from src.tools.report_saver import save_report_to_markdown
 from .types import State, Router
 
 logger = logging.getLogger(__name__)
@@ -234,6 +235,13 @@ def reporter_node(state: State) -> Command[Literal["supervisor"]]:
     response = get_llm_by_type(AGENT_LLM_MAP["reporter"]).invoke(messages)
     logger.debug(f"Current state messages: {state['messages']}")
     logger.debug(f"reporter response: {response}")
+    
+    # Save the report to markdown file
+    try:
+        saved_path = save_report_to_markdown(response.content)
+        logger.info(f"Report saved to: {saved_path}")
+    except Exception as e:
+        logger.error(f"Failed to save report: {e}")
 
     return Command(
         update={
