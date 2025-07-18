@@ -15,13 +15,9 @@ from src.tools.algogene_client import AlgogeneClient
 import yfinance as yf
 
 # 设置日志记录
+from src.tools.crypto_symbols import CRYPTO_SYMBOLS
 logger = setup_logger('api')
-CRYPTO_SYMBOLS = {
-    "BTC": "BTCUSD", "ETH": "ETHUSD", "BNB": "BNBUSD", "SOL": "SOLUSD", "XRP": "XRPUSD", "ADA": "ADAUSD",
-    "DOGE": "DOGEUSD", "DOT": "DOTUSD", "AVAX": "AVAXUSD", "MATIC": "MATICUSD", "LTC": "LTCUSD", "TRX": "TRXUSD",
-    "LINK": "LINKUSD", "ATOM": "ATOMUSD", "FIL": "FILUSD", "XMR": "XMRUSD", "UNI": "UNIUSD", "APT": "APTUSD",
-    "OP": "OPUSD", "ARB": "ARBUSD"
-}
+
 
 def get_financial_metrics(symbol: str) -> Dict[str, Any]:
     """获取财务指标数据"""

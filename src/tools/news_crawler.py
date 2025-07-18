@@ -230,7 +230,7 @@ def get_stock_news(symbol: str, market_type: str = "cn", max_news: int = 10) -> 
     按 symbol 自动分流：A股走 get_cn_stock_news，美股走 get_us_stock_news，虚拟币只用 yfinance。
     字段结构完全一致。
     """
-    from src.tools.api import CRYPTO_SYMBOLS
+    from src.tools.crypto_symbols import CRYPTO_SYMBOLS
     symbol_upper = symbol.upper().replace("-", "")
     # 虚拟币分流直接调用美股分流逻辑，字段结构100%一致
     if symbol_upper in CRYPTO_SYMBOLS:

@@ -38,7 +38,9 @@ class AlgogeneClient:
         self.session = requests.Session()
         self.session.headers.update({
             'Authorization': f'Bearer {self.api_key}',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'User-Agent': 'AlgogeneClient/1.0 (Windows NT 10.0; Win64; x64)',
+            'X-Device-Id': 'PC-001'
         })
         
         # Configure proxy if provided or use system proxy

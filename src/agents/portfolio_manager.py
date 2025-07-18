@@ -7,6 +7,7 @@ from src.agents.state import AgentState, show_agent_reasoning, show_workflow_sta
 from src.tools.openrouter_config import get_chat_completion
 from src.utils.api_utils import agent_endpoint, log_llm_interaction
 
+from src.tools.crypto_symbols import CRYPTO_SYMBOLS
 # 初始化 logger
 logger = setup_logger('portfolio_management_agent')
 
@@ -35,6 +36,11 @@ def portfolio_management_agent(state: AgentState):
     messages = state.get("messages", [])
     data = state.get("data", {})
     
+    # 新增：获取当前交易的品种 (symbol)
+    symbol = data.get("ticker", "UNKNOWN").upper()
+    # 新增：判断是否为加密货币
+    is_crypto = symbol in CRYPTO_SYMBOLS # 可以根据需要扩展这个列表
+
     # 技术分析
     technical_analysis_msg = next((m.content for m in reversed(messages) if m.name == "technical_analyst_agent"), "技术分析结果不可用。")
     # 基本面分析
@@ -88,12 +94,43 @@ def portfolio_management_agent(state: AgentState):
     current_portfolio = data.get("portfolio", {"cash": 100000, "stock": 0, "avg_price": 0, "unrealized_pnl": 0, "portfolio_value":100000})
     current_portfolio_str = json.dumps(current_portfolio, ensure_ascii=False)
 
+    # 新增：为加密货币和股票构建不同的指令
+    asset_specific_instructions = ""
+    if is_crypto:
+        asset_specific_instructions = f"""
+IMPORTANT: You are currently trading a cryptocurrency ({symbol}). Follow these specific rules:
+1.  **Quantity is a float, not an integer.** The 'quantity' field in your JSON response MUST be the exact fractional number representing the amount of the coin to trade. DO NOT divide by 100 or adjust this number in any way.
+
+2.  **Extract the current price from Technical Analysis.** You MUST carefully review the Technical Analysis report to find and use the ACTUAL CURRENT PRICE of {symbol}. Do not use arbitrary price assumptions.
+
+3.  **Calculate quantity based on available cash and actual price.** If you decide to "buy":
+    - First, determine what percentage of available cash to invest (typically 10-50% depending on conviction)
+    - Then calculate: quantity = (cash * investment_percentage) / current_price
+    - CRITICAL: The exact result of this calculation should be your 'quantity' value in the JSON response
+    - Example: If cash is $100,000, you invest 20% ($20,000), and price is $30,000, then quantity = 0.667
+    - Your JSON would include: "quantity": 0.667  (NOT 0.00667, NOT 66.7, EXACTLY 0.667)
+
+4.  **Ignore Fundamental Analysis.** Cryptocurrency lacks traditional financial statements. The `fundamentals_agent`'s analysis will likely be empty or irrelevant. You MUST ignore its output and give it zero weight in your decision-making process.
+
+5.  **Focus on other signals.** Base your decision primarily on Technical Analysis, Sentiment Analysis, and Macro trends.
+
+6.  **Include your price finding and calculation in reasoning.** In your "reasoning" field, explicitly state: "Based on Technical Analysis, the current price of {symbol} is $X. Investing Y% of available cash ($Z) gives a quantity of A. This A is my final quantity value."
+"""
+    else:
+        asset_specific_instructions = f"""
+IMPORTANT: You are currently trading a stock ({symbol}). Follow these specific rules:
+1.  **Quantity is an integer.** The 'quantity' must be a whole number (e.g., 100, 200).
+2.  **Consider all analysis.** Give appropriate weight to all agent inputs, including Fundamental, Technical, Sentiment, and Macro analysis.
+"""
+
     # 构建系统提示词
-    system_message_content = f"""You are the Portfolio Manager of a hedge fund team. Your responsibility is to make the final trading decision based on the team's analysis.
-    
+    system_message_content = f"""You are the Portfolio Manager of a hedge fund team. Your responsibility is to make the final trading decision based on the team's analysis for the asset: {symbol}.
+
+{asset_specific_instructions}
+
 Team Members Analysis:
 - "technical_analyst_agent": (Provides technical indicators and price signals)
-- "fundamentals_agent": (Provides fundamental analysis and value insights)  
+- "fundamentals_agent": (Provides fundamental analysis and value insights)
 - "sentiment_agent": (Provides sentiment analysis from news and social media)
 - "macro_news_agent": (Provides structured macro market analysis including overall_sentiment, sentiment_confidence, key_themes, risks, and outlook)
 - "researcher_bull_agent" or "researcher_bear_agent": (Provides focused research based on supervisor's direction)
@@ -101,15 +138,15 @@ Team Members Analysis:
 Current Portfolio: {current_portfolio_str}
 
 Your decision must be one of: "buy", "sell", or "hold".
-If "buy" or "sell", specify "quantity" as a positive integer (e.g. 100, 200). For "hold", quantity should be 0.
+If "buy" or "sell", specify "quantity". For "hold", quantity should be 0.
 The "confidence" score should be between 0.0 and 1.0.
 
 Provide your analysis in JSON format only, with no other text or explanations:
 {{
     "action": "buy|sell|hold",
-    "quantity": "<integer>",
+    "quantity": "<integer_for_stocks_or_float_for_crypto>",
     "confidence": "<float, 0.0-1.0>",
-    "reasoning": "<brief explanation of your decision, considering all inputs>",
+    "reasoning": "<brief explanation of your decision, considering all inputs and asset-specific rules>",
     "agent_signals": [
         {{"agent_name": "technical_analyst_agent", "signal": "<parsed_signal_or_summary>", "confidence": "<parsed_confidence_or_default>"}},
         {{"agent_name": "fundamentals_agent", "signal": "<parsed_signal_or_summary>", "confidence": "<parsed_confidence_or_default>"}},
@@ -120,7 +157,7 @@ Provide your analysis in JSON format only, with no other text or explanations:
 }}"""
 
     # 构建用户消息内容
-    user_message_content = f"""Based on the team's analysis below, make your trading decision.
+    user_message_content = f"""Based on the team's analysis below for {symbol}, make your trading decision.
     
 Technical Analysis (from technical_analyst_agent):
 {technical_analysis_msg}

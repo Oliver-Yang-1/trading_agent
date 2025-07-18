@@ -68,9 +68,6 @@ class Backtester:
                 raise ValueError("开始日期必须早于结束日期")
             if self.initial_capital <= 0:
                 raise ValueError("初始资金必须大于0")
-            if not isinstance(self.ticker, str) or len(self.ticker) != 6:
-                raise ValueError("无效的股票代码格式")
-            self.logger.info("输入参数验证通过")
         except Exception as e:
             self.logger.error(f"输入参数验证失败: {str(e)}")
             raise
