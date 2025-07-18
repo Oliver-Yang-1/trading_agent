@@ -99,7 +99,7 @@ def portfolio_management_agent(state: AgentState):
     if is_crypto:
         asset_specific_instructions = f"""
 IMPORTANT: You are currently trading a cryptocurrency ({symbol}). Follow these specific rules:
-1.  **Quantity is a float, not an integer.** The 'quantity' field in your JSON response MUST be the exact fractional number representing the amount of the coin to trade. DO NOT divide by 100 or adjust this number in any way.
+1.  **Quantity is a float, not an integer.** The 'quantity' field in your JSON response MUST be the exact fractional number representing the amount of the coin to trade FOR THIS TIME, NOT THE TOTAL AMOUNT. DO NOT divide by 100 or adjust this number in any way.
 
 2.  **Extract the current price from Technical Analysis.** You MUST carefully review the Technical Analysis report to find and use the ACTUAL CURRENT PRICE of {symbol}. Do not use arbitrary price assumptions.
 
