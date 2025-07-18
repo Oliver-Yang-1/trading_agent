@@ -34,7 +34,7 @@ You have access to the following Algogene data fetching tools:
    - Handle missing or invalid data gracefully
    - Apply necessary transformations to match expected formats
    - Preserve original data structure while enhancing readability
-
+   - Leave the main code generation tasks to coder or algogene_archieve.
 3. Output Format:
    - Provide structured data in JSON or tabular formats
    - Include metadata about Algogene data sources and timestamps

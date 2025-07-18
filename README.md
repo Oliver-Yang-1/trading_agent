@@ -119,13 +119,7 @@ First, clone this repository to your local machine.
 
 Poetry is a tool for Python dependency management and packaging.
 
-**Windows (PowerShell):**
-
-```powershell
-(Invoke-WebRequest -Uri [https://install.python-poetry.org](https://install.python-poetry.org) -UseBasicParsing).Content | py -
-```
-
-**Unix/macOS:**
+**macOS:**
 
 ```bash
 curl -sSL [https://install.python-poetry.org](https://install.python-poetry.org) | python3 -
@@ -195,18 +189,6 @@ export OPENAI_COMPATIBLE_BASE_URL='https://your-api-endpoint.com/v1'
 export OPENAI_COMPATIBLE_MODEL='your-model-name'
 ```
 
-**Windows PowerShell:**
-
-```powershell
-# Gemini API Configuration
-$env:GEMINI_API_KEY='your-gemini-api-key'
-$env:GEMINI_MODEL='gemini-1.5-flash'
-
-# OpenAI Compatible API Configuration (optional)
-$env:OPENAI_COMPATIBLE_API_KEY='your-openai-compatible-api-key'
-$env:OPENAI_COMPATIBLE_BASE_URL='https://your-api-endpoint.com/v1'
-$env:OPENAI_COMPATIBLE_MODEL='your-model-name'
-```
 
 #### For SuperAgent (Sub-Project):
 
@@ -215,7 +197,50 @@ cd src/superagent
 cp .env.example .env
 ```
 
-Edit the `.env` file to configure your API keys. The SuperAgent supports multiple LLM providers including Gemini, OpenAI-compatible APIs, and Algogene integration.
+Edit the `.env` file to configure your API keys. The SuperAgent supports multiple LLM providers and requires the following environment variables:
+
+**Required LLM Configuration:**
+```env
+# Reasoning LLM (for complex reasoning tasks)
+REASONING_API_KEY=sk-or-v1-your-openrouter-api-key
+REASONING_BASE_URL=https://openrouter.ai/api/v1
+REASONING_MODEL=anthropic/claude-sonnet-4
+
+# Non-reasoning LLM (for straightforward tasks)
+BASIC_API_KEY=sk-or-v1-your-openrouter-api-key
+BASIC_BASE_URL=https://openrouter.ai/api/v1
+BASIC_MODEL=anthropic/claude-sonnet-4
+
+# Vision-language LLM (for tasks requiring visual understanding)
+VL_API_KEY=sk-or-v1-your-openrouter-api-key
+VL_BASE_URL=https://openrouter.ai/api/v1
+VL_MODEL=anthropic/claude-sonnet-4
+```
+
+**Application Settings:**
+```env
+# Application Settings
+DEBUG=True
+APP_ENV=development
+```
+
+**Optional Services:**
+```env
+# Web Search API (for web search capabilities)
+TAVILY_API_KEY=tvly-your-tavily-api-key
+
+# Browser automation settings (optional, for Chrome-based automation)
+# CHROME_INSTANCE_PATH=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+# OpenAI Compatible API Configuration (alternative LLM provider)
+OPENAI_COMPATIBLE_API_KEY=sk-or-v1-your-openrouter-api-key
+OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_COMPATIBLE_MODEL=google/gemini-2.5-flash
+
+# Algogene API Configuration (for enhanced financial data integration)
+ALGOGENE_API_KEY=your-algogene-api-key
+ALGOGENE_USER_ID=your-algogene-user-id
+```
 
 ## 🚀 Usage Guide
 
